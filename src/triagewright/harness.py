@@ -23,6 +23,7 @@ class Session:
     state: CaseState
     trace: Trace
     runner: Runner
+    arm: str = "good"
 
 
 def save_state(state: CaseState, path: Path) -> None:
@@ -32,7 +33,7 @@ def save_state(state: CaseState, path: Path) -> None:
     tmp.replace(path)
 
 
-def open_session(scenario: Scenario, model: Model | None = None, script: str = "good",
+def open_session(scenario: Scenario, model: Model | None = None, arm: str = "good",
                  out_dir: str | Path | None = None, budget: Budget | None = None) -> Session:
     """Fresh session. With `out_dir`, environment, state and trace live on disk."""
     out = Path(out_dir) if out_dir else None
@@ -43,47 +44,52 @@ def open_session(scenario: Scenario, model: Model | None = None, script: str = "
     env = Environment(scenario.fixture, now=scenario.now,
                       path=out / "env.sqlite3" if out else ":memory:")
     state = CaseState(case=scenario.case)
-    return _assemble(scenario, env, state, out, model, script, budget,
+    return _assemble(scenario, env, state, out, model, arm, budget,
                      FaultPlan(list(scenario.faults)))
 
 
 def resume_session(scenario: Scenario, out_dir: str | Path, model: Model | None = None,
-                   script: str = "good", budget: Budget | None = None,
+                   arm: str = "good", budget: Budget | None = None,
                    faults: FaultPlan | None = None) -> Session:
     """Rebuild a session from disk, as a new process would after a crash."""
     out = Path(out_dir)
     env = Environment.open(out / "env.sqlite3")
     state = CaseState.model_validate_json((out / "state.json").read_text(encoding="utf-8"))
-    return _assemble(scenario, env, state, out, model, script, budget, faults or FaultPlan())
+    return _assemble(scenario, env, state, out, model, arm, budget, faults or FaultPlan())
 
 
 def _assemble(scenario: Scenario, env: Environment, state: CaseState, out: Path | None,
-              model: Model | None, script: str, budget: Budget | None,
+              model: Model | None, arm: str, budget: Budget | None,
               faults: FaultPlan) -> Session:
     gw = Gateway(env, default_registry(), faults)
     trace = Trace(out / "trace.jsonl" if out else None)
     if model is None:
-        model = ScriptedModel(scenario.scripts[script]())
+        model = ScriptedModel(scenario.arms[arm].steps())
     checkpoint = (lambda st: save_state(st, out / "state.json")) if out else None
     runner = Runner(state, env, gw, model, trace, budget, checkpoint=checkpoint)
-    return Session(scenario, env, state, trace, runner)
+    return Session(scenario, env, state, trace, runner, arm)
 
 
 def run_with_operator(session: Session, max_rounds: int = 5) -> CaseStatus:
-    """Run to a terminal status, answering approvals per the scenario's operator rules.
+    """Run to a terminal status, answering approvals per the operator rules.
 
-    Approvals for tools the scenario has no rule for are rejected: an unplanned
-    consequential action is the operator's to refuse.
+    Approvals for tools with no rule are rejected: an unplanned consequential action
+    is the operator's to refuse.
     """
-    rules = {r.tool: r for r in session.scenario.operator}
+    arm = session.scenario.arms.get(session.arm)
+    rule_list = arm.operator if arm and arm.operator is not None else session.scenario.operator
+    rules = {r.tool: r for r in rule_list}
     status = session.runner.run()
     for _ in range(max_rounds):
         if status is not CaseStatus.AWAITING_APPROVAL:
             break
+        if arm and arm.before_decisions:
+            arm.before_decisions(session)
         for ap in session.state.pending_approvals():
             rule = rules.get(ap.tool)
-            session.runner.decide_approval(
-                ap.id, approve=bool(rule and rule.approve), operator="sim-operator",
-                note=rule.note if rule else "no operator rule: rejected")
+            approve = rule.decide(ap.args) if rule else False
+            note = (rule.note if rule else None) or ("approved" if approve else "rejected")
+            session.runner.decide_approval(ap.id, approve=approve, operator="sim-operator",
+                                           note=note)
         status = session.runner.run()
     return status
