@@ -1,0 +1,15 @@
+# Local demo stack: the API and operator console on http://localhost:8000.
+# Set TRIAGEWRIGHT_OTLP_ENDPOINT (e.g. http://collector:4318/v1/traces) to export
+# traces to an OpenTelemetry collector; no collector is required.
+services:
+  triagewright:
+    build: .
+    image: triagewright:dev
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      TRIAGEWRIGHT_OTLP_ENDPOINT: ${TRIAGEWRIGHT_OTLP_ENDPOINT:-}
+    volumes:
+      - triagewright-runs:/data
+volumes:
+  triagewright-runs:
