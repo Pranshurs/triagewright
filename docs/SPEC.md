@@ -189,3 +189,34 @@ Focused tests while building; full gate only at checkpoints. Mutation limited to
 four boundaries above (tens of mutants, not thousands). One cold review. No evidence
 expansion once a gate no longer changes confidence. Live-model runs optional, reported
 honestly with model id/date/cost, never fabricated.
+
+## 14. Differentiation (from the prior-art pass)
+
+Existing work splits three ways. Runnable demos (vendor customer-service agent demos,
+LangGraph tutorials) have no evals, failure injection or idempotency. Benchmarks
+(tau2-bench, AppWorld, CRMArena, WorkArena) score models, need live models, user
+simulators or hosted instances, and have no approval gates. SRE agents (HolmesGPT,
+ITBench, AIOpsLab) cover infrastructure only, are mostly read-only, and need clusters.
+This project's position:
+
+1. Hermetic and deterministic: clone, run, score with no key and no cluster.
+2. Fault injection, including timeout-after-effect, with idempotency and a
+   duplicate-effect metric scored on final system state.
+3. Approval-gated actions bound to exact arguments; evals score both unnecessary
+   and missed escalation.
+4. Cases that cross business systems (billing, entitlements) and ops systems
+   (provisioning, services, incidents, webhooks).
+5. Grounding check: findings must cite observations that exist, and the values they
+   name must appear in those observations.
+
+Not competing on: model leaderboards, realism of real infrastructure, being a
+general agent framework, or being a commercial CX product.
+
+## 15. Adjustments from the market pass
+
+- MCP moves from optional to core: the tool catalogue is served as an MCP server,
+  and the docs show attaching it to an MCP client.
+- Traces also export as OpenTelemetry-style spans (JSON), so they can be loaded into
+  standard trace viewers. There is no hard dependency on any vendor.
+- The README includes a "deploying this at a customer" section: swapping adapters,
+  writing policy, onboarding scenarios.
