@@ -13,3 +13,7 @@ package registries (PyPI, npm), GitHub, domain glances, and qualified web search
 
 This is a collision check, **not** trademark clearance. A fresh registry and search
 check is repeated immediately before first publication.
+
+**Re-check 2026-10-07:** PyPI and npm free for `triagewright` and variants; no GitHub
+repositories or users; no DNS for triagewright.com/.io/.dev; qualified web searches
+found no company or product of that name.
