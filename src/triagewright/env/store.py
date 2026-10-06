@@ -43,7 +43,7 @@ JSON_COLUMNS = {("plans", "features"), ("incidents", "service_ids")}
 
 
 def _schema() -> str:
-    return resources.files("fdeops.env").joinpath("schema.sql").read_text(encoding="utf-8")
+    return resources.files("triagewright.env").joinpath("schema.sql").read_text(encoding="utf-8")
 
 
 class Environment:

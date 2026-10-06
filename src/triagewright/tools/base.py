@@ -3,7 +3,7 @@
 The gateway plays the part of the real upstream systems: it validates input,
 injects configured faults, and honours idempotency keys on writes the way a
 payment processor does. It does not decide whether a call is *allowed*; that is
-the policy's job (see `fdeops.policy`).
+the policy's job (see `triagewright.policy`).
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from fdeops.env.faults import FaultKind, FaultPlan
-from fdeops.env.store import Environment
+from triagewright.env.faults import FaultKind, FaultPlan
+from triagewright.env.store import Environment
 
 
 class Effect(StrEnum):

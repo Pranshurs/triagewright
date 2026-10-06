@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fdeops.env.faults import FaultKind, FaultPlan, FaultRule
-from fdeops.env.store import Environment
-from fdeops.tools.base import Gateway, Outcome
-from fdeops.tools.catalog import default_registry
+from triagewright.env.faults import FaultKind, FaultPlan, FaultRule
+from triagewright.env.store import Environment
+from triagewright.tools.base import Gateway, Outcome
+from triagewright.tools.catalog import default_registry
 
 REFUND = {"payment_event_id": "pe1", "amount_cents": 480000, "reason": "duplicate"}
 
@@ -84,5 +84,5 @@ def test_transient_fault_then_success(env: Environment) -> None:
 
 
 def test_runbook_search_finds_billing() -> None:
-    from fdeops import runbooks
+    from triagewright import runbooks
     assert runbooks.search("duplicate charge")[0]["runbook_id"] == "billing-duplicate-charges"

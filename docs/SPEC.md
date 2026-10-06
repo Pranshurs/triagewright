@@ -1,6 +1,6 @@
-# V1 Product Spec — FDE Operations Agent (working name)
+# V1 Product Spec — Triagewright
 
-Status: DRAFT for owner review · 2026-10-06 · public name not locked
+Status: DRAFT for owner review · 2026-10-06 · name provisionally locked (collision knockout, not trademark clearance)
 
 ## 1. Thesis
 

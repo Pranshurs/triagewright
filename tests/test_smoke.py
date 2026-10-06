@@ -1,5 +1,5 @@
-from fdeops import __version__
-from fdeops.cli import main
+from triagewright import __version__
+from triagewright.cli import main
 
 
 def test_version() -> None:

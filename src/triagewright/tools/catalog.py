@@ -10,9 +10,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from fdeops import runbooks
-from fdeops.env.store import Environment
-from fdeops.tools.base import Effect, Registry, Tool, ToolError
+from triagewright import runbooks
+from triagewright.env.store import Environment
+from triagewright.tools.base import Effect, Registry, Tool, ToolError
 
 
 class _In(BaseModel):

@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from fdeops.env.store import Environment
+from triagewright.env.store import Environment
 
 NOW = "2026-10-06T09:00:00"
 
