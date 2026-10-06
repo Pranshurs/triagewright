@@ -1,6 +1,6 @@
 # V1 Product Spec — Triagewright
 
-Status: DRAFT for owner review · 2026-10-06 · name provisionally locked (collision knockout, not trademark clearance)
+Status: V1 spec, frozen 2026-10-06; amended by owner rulings during P1b–P3 (noted inline). Name provisionally locked (collision knockout, not trademark clearance).
 
 ## 1. Thesis
 
@@ -78,12 +78,13 @@ retrying an unknown-outcome write blindly, proceeding after a rejected approval.
 ```
 
 - **Model** decides; **Runner** disposes. The model never calls tools directly.
-- `Decision` is one of: `call_tool(name, args, rationale)`,
-  `request_approval(action, args, rationale, evidence)`, `ask_clarification(q)`,
-  `finish(resolution)`.
-- Models: `ScriptedModel` (deterministic, used by all tests and red arms) and
-  optional `EndpointModel` adapter (native tool calling,
-  no SDK lock-in beyond `httpx`). Nothing requires an API key.
+- `Decision` is one of: `use_tool(tool, args, rationale, evidence)`,
+  `ask_customer(question)`, `finish(resolution)`. *(Amended in P1b: there is no
+  `request_approval` decision. The model cannot declare an action consequential or
+  safe; the runner classifies every `use_tool`.)*
+- Models: `ScriptedModel` (deterministic, used by all tests and red arms) and one
+  optional `EndpointModel` adapter (native tool calling over `httpx`). Nothing
+  requires an API key. *(Owner ruling: no second provider adapter in V1.)*
 
 ## 6. Tool model
 
@@ -102,10 +103,11 @@ adapter function. Effect classes:
 
 Domains V1: accounts/CRM, tickets & case notes, billing (invoices, payment events,
 refunds), entitlements, provisioning/workspaces, service health & incidents,
-webhooks, runbooks, customer messaging. ~25 tools.
+webhooks, runbooks, customer messaging. 31 tools (owner ruling: no more unless a scenario needs one).
 
-Tool registry is exportable as an MCP server (stdio) for READ tools and as a JSON
-schema catalogue for any model adapter (optional extra; see owner rulings).
+The same registry backs the runner, the model adapter's function schemas and the
+MCP server (stdio). MCP tool calls are proposals that go through the runner; MCP exposes
+no approval capability. *(Amended in P3.)*
 
 ## 7. Action / approval model
 
@@ -122,7 +124,7 @@ schema catalogue for any model adapter (optional extra; see owner rulings).
 
 ## 8. State model
 
-`CaseState` (persisted per run, SQLite):
+`CaseState` (persisted per run as JSON, written atomically before every write dispatch; the environment is a SQLite file):
 - case: id, account, contact, request text, status
   (`OPEN → INVESTIGATING → AWAITING_APPROVAL ↔ INVESTIGATING → RESOLVED | ESCALATED | NEEDS_INFO | FAILED`)
 - observations: `obs_id`, tool, args, result (or error), timestamp
@@ -149,18 +151,23 @@ upstream data.
 
 - `trace.jsonl`: every decision (with rationale), policy verdict, tool call, result,
   approval event, budget event, with monotonic sequence numbers.
-- Resolution must be structured: `diagnosis`, `findings[]` each citing `obs_id`s,
-  `actions_taken`, `actions_pending`, `customer_reply`, `uncertainty`.
-- **Grounding check**: every finding must cite ≥1 observed obs_id, and identifiers /
-  amounts it names (invoice ids, payment ids, money amounts) must appear in the cited
-  payloads. Ungrounded findings are flagged in the record and penalised in evals.
+- Resolution is structured: `outcome` (a request, not a fact), `diagnosis`, `summary`,
+  `findings[]` each citing `obs_id`s with record/field facts, and `uncertainty`. Actions
+  are not part of it; the case record lists actions from the runner's own log.
+- **Grounding check**: every finding must cite observed obs_ids, and each fact
+  (`obs`, `record`, `field`, `value`) must hold in a cited observation. *(Amended in P2
+  from substring matching, which accepted a real value taken from the wrong record.)*
+  Ungrounded findings are rejected twice, then flagged in the record and penalised in
+  evals.
 - Case record (markdown) rendered from state: timeline, evidence, actions, approvals.
 
 ## 11. Eval criteria
 
-Each scenario has a gold file: expected diagnosis label, required evidence sources,
-required / forbidden actions, expected approvals, expected terminal status, and
-assertions on **final environment state** (e.g. exactly one refund on payment X).
+Each scenario has a gold outcome: acceptable diagnosis labels, required and forbidden
+effects, consequential tools, expected approvals, acceptable terminal statuses,
+escalation expectation, and predicates on **final environment state**. The scorer
+judges the upstream effect journal and the trace as well as the final state, and never
+calls the runtime policy. *(Amended in P2; see EVALS.md for the dimensions.)*
 
 Metrics per run and aggregated:
 task completion · diagnosis correctness · required-evidence coverage · incorrect
@@ -206,8 +213,9 @@ This project's position:
    and missed escalation.
 4. Cases that cross business systems (billing, entitlements) and ops systems
    (provisioning, services, incidents, webhooks).
-5. Grounding check: findings must cite observations that exist, and the values they
-   name must appear in those observations.
+5. Grounding check: findings must cite observations that exist, and each fact must
+   match a specific record and field in them (relationships are not verified; see
+   LIMITATIONS).
 
 Not competing on: model leaderboards, realism of real infrastructure, being a
 general agent framework, or being a commercial CX product.
