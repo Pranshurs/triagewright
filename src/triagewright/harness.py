@@ -10,7 +10,7 @@ from triagewright.env.store import Environment
 from triagewright.model import Model, ScriptedModel
 from triagewright.runner import Budget, Runner
 from triagewright.scenarios import Scenario
-from triagewright.state import CaseState, CaseStatus
+from triagewright.state import Case, CaseState, CaseStatus
 from triagewright.tools.base import Gateway
 from triagewright.tools.catalog import default_registry
 from triagewright.trace import Trace
@@ -34,7 +34,8 @@ def save_state(state: CaseState, path: Path) -> None:
 
 
 def open_session(scenario: Scenario, model: Model | None = None, arm: str = "good",
-                 out_dir: str | Path | None = None, budget: Budget | None = None) -> Session:
+                 out_dir: str | Path | None = None, budget: Budget | None = None,
+                 case: Case | None = None) -> Session:
     """Fresh session. With `out_dir`, environment, state and trace live on disk."""
     out = Path(out_dir) if out_dir else None
     if out:
@@ -43,7 +44,7 @@ def open_session(scenario: Scenario, model: Model | None = None, arm: str = "goo
             (out / name).unlink(missing_ok=True)
     env = Environment(scenario.fixture, now=scenario.now,
                       path=out / "env.sqlite3" if out else ":memory:")
-    state = CaseState(case=scenario.case)
+    state = CaseState(case=case or scenario.case)
     return _assemble(scenario, env, state, out, model, arm, budget,
                      FaultPlan(list(scenario.faults)))
 

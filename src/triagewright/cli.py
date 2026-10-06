@@ -27,6 +27,22 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("scenario")
     run.add_argument("--arm", default="good")
     run.add_argument("--out", type=Path, help="directory for trace.jsonl, state.json, case.md")
+    sv = sub.add_parser("serve", help="HTTP API and operator console")
+    sv.add_argument("--host", default="127.0.0.1")
+    sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--runs", type=Path, default=Path("runs"))
+    op = sub.add_parser("open", help="open a case; prints its id")
+    op.add_argument("scenario")
+    op.add_argument("--arm", default="good")
+    op.add_argument("--external", action="store_true",
+                    help="no script: an external agent (HTTP or MCP) drives the case")
+    op.add_argument("--runs", type=Path, default=Path("runs"))
+    mc = sub.add_parser("mcp", help="serve one case's tools over MCP (stdio)")
+    mc.add_argument("case_id")
+    mc.add_argument("--runs", type=Path, default=Path("runs"))
+    ot = sub.add_parser("otel", help="print a case's trace as OTLP/JSON")
+    ot.add_argument("case_id")
+    ot.add_argument("--runs", type=Path, default=Path("runs"))
     ev = sub.add_parser("eval", help="run and score every scenario arm")
     ev.add_argument("--json", type=Path, help="write the score cards as JSON")
     a = p.parse_args(argv)
@@ -55,6 +71,32 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- {k}: {getattr(card, k)}")
         for n in card.notes:
             print(f"  - {n}")
+        return 0
+    if a.cmd == "serve":
+        import uvicorn
+
+        from triagewright.api import create_app
+        from triagewright.service import CaseService
+
+        uvicorn.run(create_app(CaseService(a.runs)), host=a.host, port=a.port)
+        return 0
+    if a.cmd == "open":
+        from triagewright.service import CaseService
+
+        print(CaseService(a.runs).create(a.scenario, None if a.external else a.arm))
+        return 0
+    if a.cmd == "mcp":
+        from triagewright.mcp_server import serve_stdio
+        from triagewright.service import CaseService
+
+        serve_stdio(CaseService(a.runs), a.case_id)
+        return 0
+    if a.cmd == "otel":
+        from triagewright.service import CaseService
+        from triagewright.telemetry import otlp_json
+
+        svc = CaseService(a.runs)
+        print(json.dumps(otlp_json(svc.trace(a.case_id), a.case_id), indent=2))
         return 0
     if a.cmd == "eval":
         results = run_all()

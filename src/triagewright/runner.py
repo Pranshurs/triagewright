@@ -43,6 +43,14 @@ REPEATABLE = {"retry_provisioning", "restart_service", "resync_entitlements",
               "set_ticket_status"}
 
 
+class NotAccepting(RuntimeError):
+    """The case cannot take a decision now (terminal, or awaiting an operator)."""
+
+
+class StaleApproval(ValueError):
+    """The approval is no longer pending, or no longer what the operator was shown."""
+
+
 @dataclass(frozen=True)
 class Budget:
     max_steps: int = 40
@@ -64,18 +72,22 @@ class Runner:
 
     # -- public API ----------------------------------------------------------------
 
-    def run(self) -> CaseStatus:
-        """Drive the case until it is terminal or waits for an operator."""
+    def start(self) -> None:
+        """Intake, plus settlement of anything a previous process left in flight.
+        Safe to call repeatedly."""
         s = self.state
         if s.status is CaseStatus.OPEN:
             self.trace.emit("case_opened", case=s.case.model_dump())
             self._set_status(CaseStatus.INVESTIGATING, "intake")
         self._settle_outstanding()
         self._maybe_resume_after_approvals()
-        while not s.status.terminal and s.status is not CaseStatus.AWAITING_APPROVAL:
-            if s.step >= self.budget.max_steps or s.tool_calls >= self.budget.max_tool_calls:
-                self.trace.emit("budget_exhausted", step=s.step, tool_calls=s.tool_calls)
-                self._set_status(CaseStatus.FAILED, "budget exhausted")
+
+    def run(self) -> CaseStatus:
+        """Drive the case with the configured model until it is terminal or waits."""
+        s = self.state
+        self.start()
+        while self._accepting() is None:
+            if self._over_budget():
                 break
             view = CaseView(s, self.gw.registry, self._feedback)
             self._feedback = None
@@ -85,17 +97,53 @@ class Runner:
                 self.trace.emit("model_error", error=f"{type(e).__name__}: {e}")
                 self._set_status(CaseStatus.FAILED, "model error")
                 break
-            s.step += 1
-            self.trace.emit("decision", step=s.step, decision=decision.model_dump())
-            if isinstance(decision, UseTool):
-                self._feedback = self._use_tool(decision)
-            elif isinstance(decision, AskCustomer):
-                self._ask(decision)
-            else:
-                self._finish(decision)
-            self._checkpoint(s)
+            self._apply(decision)
         self._checkpoint(s)
         return s.status
+
+    def submit(self, decision: UseTool | AskCustomer | Finish) -> str | None:
+        """One decision from an external agent (API, MCP). Same path as `run`.
+
+        Returns the runner's feedback on that decision.
+        """
+        self.start()
+        why = self._accepting()
+        if why is not None:
+            raise NotAccepting(why)
+        if self._over_budget():
+            raise NotAccepting("budget exhausted")
+        self._feedback = None
+        self._apply(decision)
+        return self._feedback
+
+    def _accepting(self) -> str | None:
+        st = self.state.status
+        if st.terminal:
+            return f"case is {st.value}"
+        if st is CaseStatus.AWAITING_APPROVAL:
+            return "case is awaiting operator approval"
+        return None
+
+    def _over_budget(self) -> bool:
+        s = self.state
+        if s.step >= self.budget.max_steps or s.tool_calls >= self.budget.max_tool_calls:
+            self.trace.emit("budget_exhausted", step=s.step, tool_calls=s.tool_calls)
+            self._set_status(CaseStatus.FAILED, "budget exhausted")
+            self._checkpoint(s)
+            return True
+        return False
+
+    def _apply(self, decision: UseTool | AskCustomer | Finish) -> None:
+        s = self.state
+        s.step += 1
+        self.trace.emit("decision", step=s.step, decision=decision.model_dump())
+        if isinstance(decision, UseTool):
+            self._feedback = self._use_tool(decision)
+        elif isinstance(decision, AskCustomer):
+            self._ask(decision)
+        else:
+            self._finish(decision)
+        self._checkpoint(s)
 
     def _settle_outstanding(self) -> None:
         """After a restart: settle writes that were dispatched but never answered.
@@ -110,13 +158,24 @@ class Runner:
                 self._reconcile(rec)
 
     def decide_approval(self, approval_id: str, approve: bool, operator: str,
-                        note: str | None = None) -> Approval:
-        """Operator decision. Approved actions are executed by the runner, now."""
+                        note: str | None = None,
+                        expected_binding: str | None = None) -> Approval:
+        """Operator decision. Approved actions are executed by the runner, now.
+
+        `expected_binding` is the binding the operator was shown. If the approval's
+        current content no longer hashes to it (the request changed after the page
+        was rendered), the decision is refused and nothing is recorded.
+        """
         ap = next((a for a in self.state.approvals if a.id == approval_id), None)
         if ap is None:
             raise KeyError(approval_id)
         if ap.status is not ApprovalStatus.PENDING:
-            raise ValueError(f"approval {approval_id} is {ap.status.value}, not pending")
+            raise StaleApproval(f"approval {approval_id} is {ap.status.value}, not pending")
+        if expected_binding is not None:
+            current = binding(self.state.case.id, self.state.case.account_id, ap.tool, ap.args)
+            if expected_binding != ap.binding or expected_binding != current:
+                self.trace.emit("approval_stale", approval_id=ap.id)
+                raise StaleApproval(f"approval {approval_id} changed since it was shown")
         ap.status = ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED
         ap.decided_by, ap.note = operator, note
         ap.decided_step = self.state.step

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triagewright</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1d232b; --muted: #5d6874; --line: #dde2e8;
+    --accent: #2f5fd0; --ok: #1f7a4d; --warn: #9a6200; --bad: #b3261e; --chip: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171b; --panel: #1c2026; --ink: #e6e9ed; --muted: #9aa5b1; --line: #2c323a;
+            --accent: #7b9cf0; --ok: #5cc28f; --warn: #e0a84a; --bad: #f08a80; --chip: #262b33; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+           display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header span { color: var(--muted); }
+  main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+            padding: 14px; margin-bottom: 14px; min-width: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+       margin: 0 0 10px; }
+  select, button { font: inherit; }
+  select { width: 100%; padding: 6px; margin-bottom: 8px; background: var(--panel);
+           color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+  button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--chip); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.reject { color: var(--bad); }
+  ul.cases { list-style: none; padding: 0; margin: 0; }
+  ul.cases li { padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex;
+                justify-content: space-between; gap: 8px; }
+  ul.cases li:hover, ul.cases li.sel { background: var(--chip); }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--chip);
+          font-size: 12px; white-space: nowrap; }
+  .s-resolved, .s-succeeded, .s-executed, .s-approved, .s-allow { color: var(--ok); }
+  .s-awaiting_approval, .s-pending, .s-needs_attention, .s-unknown, .s-needs_approval
+    { color: var(--warn); }
+  .s-failed, .s-rejected, .s-deny, .s-escalated { color: var(--bad); }
+  .muted { color: var(--muted); }
+  blockquote { margin: 0; padding: 8px 12px; border-left: 3px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line);
+           vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; }
+  code, pre { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; max-height: 220px;
+        overflow: auto; background: var(--chip); padding: 8px; border-radius: 6px; }
+  details summary { cursor: pointer; }
+  .approval { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .err { color: var(--bad); }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Triagewright</h1>
+  <span>Operator console. The model proposes; the runtime decides; you approve.</span>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>New case</h2>
+      <select id="scenario"></select>
+      <select id="arm"></select>
+      <div class="row"><button class="primary" id="create">Open case</button></div>
+      <p class="muted" id="about"></p>
+    </section>
+    <section>
+      <h2>Cases</h2>
+      <ul class="cases" id="cases"></ul>
+    </section>
+  </div>
+  <div id="detail"><section><p class="muted">Open or select a case.</p></section></div>
+</main>
+<script>
+"use strict";
+let scenarios = [], current = null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const chip = (v) => `<span class="chip s-${esc(v)}">${esc(v)}</span>`;
+const args = (a) => Object.entries(a || {}).map(([k, v]) => `${esc(k)}=${esc(v)}`).join(", ");
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {headers: {"Content-Type": "application/json"}, ...opts});
+  const body = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(body.detail ? JSON.stringify(body.detail) : body);
+  return body;
+}
+
+async function init() {
+  scenarios = await api("/api/scenarios");
+  $("scenario").innerHTML = scenarios.map(s => `<option value="${s.id}">${s.id} — ${esc(s.title)}</option>`).join("");
+  $("scenario").onchange = arms; arms();
+  $("create").onclick = async () => {
+    const {case_id} = await api("/api/cases", {method: "POST",
+      body: JSON.stringify({scenario: $("scenario").value, arm: $("arm").value})});
+    await api(`/api/cases/${case_id}/run`, {method: "POST"});
+    await refreshCases(); select(case_id);
+  };
+  await refreshCases();
+}
+
+function arms() {
+  const s = scenarios.find(x => x.id === $("scenario").value);
+  $("arm").innerHTML = Object.keys(s.arms).map(a => `<option>${a}</option>`).join("");
+  $("arm").onchange = () => { $("about").textContent = s.arms[$("arm").value] || s.invariant; };
+  $("about").textContent = s.invariant;
+}
+
+async function refreshCases() {
+  const cs = await api("/api/cases");
+  $("cases").innerHTML = cs.map(c => `<li data-id="${esc(c.case_id)}" class="${c.case_id === current ? "sel" : ""}">
+      <span>${esc(c.case_id)} <span class="muted">${esc(c.arm ?? "external")}</span></span>${chip(c.status)}</li>`).join("")
+    || `<li class="muted">none yet</li>`;
+  document.querySelectorAll("#cases li[data-id]").forEach(li => li.onclick = () => select(li.dataset.id));
+}
+
+async function select(id) {
+  current = id;
+  const [v, trace, score] = await Promise.all([
+    api(`/api/cases/${id}`), api(`/api/cases/${id}/trace`), api(`/api/cases/${id}/score`)]);
+  render(v, trace, score);
+  refreshCases();
+}
+
+function render(v, trace, score) {
+  const pending = v.approvals.filter(a => a.status === "pending");
+  $("detail").innerHTML = `
+  <section>
+    <h2>Case ${esc(v.case.id)} ${chip(v.status)}</h2>
+    <p class="muted">${esc(v.status_reason)} · account <code>${esc(v.case.account_id)}</code> ·
+      ticket <code>${esc(v.case.ticket_id)}</code> · ${v.steps} steps · ${v.tool_calls} tool calls</p>
+    <blockquote>${esc(v.case.request)}</blockquote>
+  </section>
+  <section>
+    <h2>Approvals</h2>
+    ${v.approvals.length ? v.approvals.map(a => `
+      <div class="approval">
+        <div class="row"><b>${esc(a.tool)}</b>(${args(a.args)}) ${chip(a.status)}</div>
+        <p class="muted">Rationale: ${esc(a.rationale) || "—"} · evidence ${esc(a.evidence.join(", ") || "—")}</p>
+        ${a.status === "pending" ? `<div class="row">
+          <button class="primary" data-ap="${esc(a.id)}" data-b="${esc(a.binding)}" data-ok="1">Approve</button>
+          <button class="reject" data-ap="${esc(a.id)}" data-b="${esc(a.binding)}" data-ok="0">Reject</button>
+          <span class="err" id="err-${esc(a.id)}"></span></div>` :
+          `<p class="muted">Decided by ${esc(a.decided_by || "—")}${a.note ? ": " + esc(a.note) : ""}</p>`}
+      </div>`).join("") : `<p class="muted">No approval requests.</p>`}
+  </section>
+  <section>
+    <h2>Actions taken (runner record)</h2>
+    <div class="scroll"><table><tr><th>id</th><th>operation</th><th>status</th><th>notes</th></tr>
+    ${v.actions.map(a => `<tr><td><code>${esc(a.id)}</code></td><td>${esc(a.tool)}(${args(a.args)})</td>
+      <td>${chip(a.status)}</td><td class="muted">${a.approval_id ? "approval " + esc(a.approval_id) + " · " : ""}${
+        a.reconcile_attempts ? "reconciled ×" + a.reconcile_attempts + " · " : ""}${a.replayed ? "replayed" : ""}</td></tr>`).join("")
+      || `<tr><td colspan="4" class="muted">none</td></tr>`}</table></div>
+  </section>
+  ${v.resolution ? `<section><h2>Diagnosis</h2>
+    <p><b>${esc(v.resolution.diagnosis)}</b> — ${esc(v.resolution.summary)}</p>
+    <ul>${v.resolution.findings.map(f => `<li>${esc(f.claim)} <span class="muted">[${esc(f.evidence.join(", "))}]</span>
+      ${f.grounded ? chip("grounded") : `<span class="chip s-failed">ungrounded</span>`}</li>`).join("")}</ul>
+    ${v.resolution.uncertainty ? `<p class="muted">Uncertainty: ${esc(v.resolution.uncertainty)}</p>` : ""}</section>` : ""}
+  <section>
+    <h2>Evidence (${v.observations.length} observations)</h2>
+    ${v.observations.map(o => `<details><summary><code>${esc(o.id)}</code> ${esc(o.tool)}(${args(o.args)})
+      ${o.ok ? "" : chip("failed")}${o.attempts > 1 ? ` <span class="muted">${o.attempts} attempts</span>` : ""}</summary>
+      <pre>${esc(JSON.stringify(o.result, null, 2))}</pre></details>`).join("")}
+  </section>
+  <section>
+    <h2>Independent score</h2>
+    <div class="row">${["resolution", "harmful_effects", "unauthorized_attempts", "approval_correct",
+      "unknown_closed", "scope_intact", "ungrounded", "escalation", "diagnosis_correct"].map(k =>
+      `<span class="chip">${k}: ${esc(score[k])}</span>`).join("")}</div>
+    ${score.notes.length ? `<ul>${score.notes.map(n => `<li class="muted">${esc(n)}</li>`).join("")}</ul>` : ""}
+  </section>
+  <section>
+    <h2>Trace (${trace.length} events)</h2>
+    <div class="scroll"><table>${trace.map(e => `<tr><td class="muted">${e.seq}</td><td>${esc(e.type)}</td>
+      <td>${esc(summary(e))}</td></tr>`).join("")}</table></div>
+  </section>`;
+  document.querySelectorAll("button[data-ap]").forEach(b => b.onclick = () => decide(b));
+}
+
+function summary(e) {
+  if (e.type === "decision") return `${e.decision.tool || e.decision.kind} — ${e.decision.rationale || ""}`;
+  if (e.type === "policy") return `${e.tool}: ${e.verdict} (${e.rule}) ${e.reason || ""}`;
+  if (e.type === "tool_call") return `${e.tool} → ${e.outcome}${e.error_code ? " " + e.error_code : ""}`;
+  if (e.type === "case_status") return `${e.status} (${e.reason})`;
+  const {seq, type, ...rest} = e; return JSON.stringify(rest).slice(0, 180);
+}
+
+async function decide(btn) {
+  // The page sends what it was shown (the binding); the server decides whether
+  // that is still the request on file.
+  try {
+    await api(`/api/cases/${current}/approvals/${btn.dataset.ap}`, {method: "POST",
+      body: JSON.stringify({approve: btn.dataset.ok === "1", operator: "console-operator",
+                            binding: btn.dataset.b})});
+    select(current);
+  } catch (e) { $("err-" + btn.dataset.ap).textContent = e.message; }
+}
+
+init().catch(e => { $("detail").innerHTML = `<section class="err">${esc(e.message)}</section>`; });
+</script>
+</body>
+</html>

@@ -72,7 +72,9 @@ class Environment:
         return env
 
     def _connect(self, path: str | Path) -> None:
-        self._conn = sqlite3.connect(str(path), isolation_level=None)
+        # One environment is used by one case; callers serialise access (CaseService
+        # holds a lock), but the HTTP server may run handlers on worker threads.
+        self._conn = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
 
