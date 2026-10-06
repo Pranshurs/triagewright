@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fdeops"
+version = "0.0.1.dev0"
+description = "Operations agent that investigates support and ops cases across business systems, with approvals, recovery and an audit trace."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "Pranshu Raj" }]
+dependencies = [
+  "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+server = ["fastapi>=0.110", "uvicorn>=0.29"]
+endpoint = ["httpx>=0.27"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+fdeops = "fdeops.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fdeops"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["src/fdeops"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
