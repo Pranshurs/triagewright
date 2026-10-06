@@ -165,7 +165,8 @@ def test_http_forged_account_is_not_a_field(http: tuple[TestClient, CaseService]
     assert r.status_code == 422
     r = client.post(f"/api/cases/{cid}/decisions", json={
         "kind": "use_tool", "tool": "list_invoices", "args": {"account_id": "acc_brightmoor"}})
-    assert "scope.cross_account" in r.json()["feedback"]
+    assert r.json()["feedback"].startswith("denied by policy (scope)")
+    assert svc.trace(cid)[-1]["rule"] == "scope.cross_account"
     assert svc.view(cid)["case"]["account_id"] == "acc_halvard"
 
 
@@ -313,17 +314,39 @@ def test_otel_export_carries_no_secrets_or_payloads(tmp_path: Path,
     s = open_session(s01_duplicate_charge.SCENARIO)
     from triagewright.harness import run_with_operator
     run_with_operator(s)
-    blob = json.dumps(otlp_json(s.trace.events, "case_s01", s.trace.times))
+    # Search what the export says, not when: timestamps are 19-digit wall-clock
+    # numbers and can contain any digit run, so they are excluded from the search.
+    export = otlp_json(s.trace.events, "case_s01", s.trace.times)
+    blob = json.dumps(_without_timestamps(export))
     secrets = ["sk-test-triagewright", s.state.approvals[0].binding,
                *(a.idempotency_key for a in s.state.actions),
                "ines.varga@halvard.example", "charged twice", "480000", "4,800",
                "duplicate capture of invoice", "verified duplicate"]
     assert not [x for x in secrets if x in blob]
-    spans = json.loads(blob)["resourceSpans"][0]["scopeSpans"][0]["spans"]
+    spans = export["resourceSpans"][0]["scopeSpans"][0]["spans"]
     ids = {sp["spanId"] for sp in spans}
     assert all(len(sp["traceId"]) == 32 and len(sp["spanId"]) == 16 for sp in spans)
     assert all(sp.get("parentSpanId") in ids for sp in spans[1:])
     assert any(sp["name"] == "reconcile act_004" for sp in spans)
+
+
+def _without_timestamps(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {k: _without_timestamps(v) for k, v in node.items()
+                if not k.endswith("UnixNano")}
+    if isinstance(node, list):
+        return [_without_timestamps(v) for v in node]
+    return node
+
+
+def test_otel_secret_check_ignores_timestamps_only() -> None:
+    """The regression check above must not be satisfied by stripping content: an amount
+    placed in an attribute is still found, and one inside a timestamp is not."""
+    leaky = {"spans": [{"startTimeUnixNano": "1759784800000480000",
+                        "attributes": [{"key": "x", "value": {"intValue": "480000"}}]}]}
+    assert "480000" in json.dumps(_without_timestamps(leaky))
+    clean = {"spans": [{"startTimeUnixNano": "1759784800000480000", "attributes": []}]}
+    assert "480000" not in json.dumps(_without_timestamps(clean))
 
 
 class _Broken:

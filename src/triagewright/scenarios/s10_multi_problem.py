@@ -22,6 +22,7 @@ fx["services"][1]["health"] = "degraded"
 fx["workspaces"].append({"id": WS, "account_id": ACCOUNT, "name": "halvard-eu",
                          "status": "degraded", "tenancy": "shared",
                          "service_id": "svc_shared_eu"})
+fx["tickets"][0]["incident_id"] = "inc_420"  # another tenant on the same incident
 fx["incidents"] = [{"id": "inc_420", "title": "shared-eu-3 elevated latency",
                     "status": "identified", "severity": "sev2",
                     "service_ids": ["svc_shared_eu"], "started_at": "2026-10-06T06:50:00"}]
@@ -47,6 +48,7 @@ def _common() -> list[Step]:
         UseTool(tool="list_workspaces", args={"account_id": ACCOUNT}),
         UseTool(tool="get_workspace_health", args={"workspace_id": WS}),
         UseTool(tool="list_incidents", args={}),
+        UseTool(tool="get_incident", args={"incident_id": "inc_420"}),
         UseTool(tool="link_ticket_to_incident", args={"ticket_id": T, "incident_id": "inc_420"}),
         UseTool(tool="get_account", args={"account_id": ACCOUNT}),
         UseTool(tool="get_entitlements", args={"account_id": ACCOUNT}),

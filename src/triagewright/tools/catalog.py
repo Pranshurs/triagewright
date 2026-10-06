@@ -148,9 +148,9 @@ def _payment(env: Environment, a: Any) -> str:
     return str(_need(row, "payment event")["account_id"])
 
 
-def _contact(env: Environment, a: Any) -> str | None:
+def _contact(env: Environment, a: Any) -> str:
     row = env.one("SELECT account_id FROM contacts WHERE email=?", [a.email])
-    return None if row is None else str(row["account_id"])
+    return str(_need(row, "contact")["account_id"])
 
 
 def _global(env: Environment, a: Any) -> None:
@@ -220,9 +220,11 @@ def list_incidents(env: Environment, a: ListIncidentsIn) -> dict[str, Any]:
 
 
 def get_incident(env: Environment, a: IncidentIn) -> dict[str, Any]:
+    # Global tool: it must not return account-owned data. Which tickets are linked to
+    # an incident spans customers, so it is not exposed here; a case sees its own link
+    # on its ticket.
     inc = _need(env.one("SELECT * FROM incidents WHERE id=?", [a.incident_id]), "incident")
-    linked = env.query("SELECT id FROM tickets WHERE incident_id=? ORDER BY id", [a.incident_id])
-    return {"incident": inc, "linked_tickets": [t["id"] for t in linked]}
+    return {"incident": inc}
 
 
 def get_ticket(env: Environment, a: TicketIn) -> dict[str, Any]:
@@ -426,7 +428,7 @@ def default_registry() -> Registry:
       "operations", R, WorkspaceIn, get_workspace_health, _workspace)
     t("list_incidents", "Platform incidents (open by default).", "operations", R,
       ListIncidentsIn, list_incidents, _global)
-    t("get_incident", "One incident and the tickets linked to it.", "operations", R,
+    t("get_incident", "One platform incident.", "operations", R,
       IncidentIn, get_incident, _global)
     t("get_ticket", "A support ticket with its notes and replies.", "support", R, TicketIn,
       get_ticket, _ticket)

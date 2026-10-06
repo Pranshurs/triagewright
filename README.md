@@ -107,12 +107,13 @@ arm declares the score card it must produce; see [docs/EVALS.md](docs/EVALS.md).
 
 ## Evidence
 
-- **111 tests:** scenario arms, crash/resume, transport parity, boundary and adapter
-  tests.
+- **124 tests:** scenario arms, crash/resume, transport parity, boundary, adapter and
+  review-repair tests.
 - **`triagewright eval`:** 24 arms, 24/24 expected score cards.
 - **Bounded mutation campaign** over approval binding, tenant scope, unknown-outcome
-  reconciliation, the transport boundary and the scorer: 54/54 non-equivalent mutants
-  killed, 2 argued equivalent ([mutation/RESULTS.md](mutation/RESULTS.md)).
+  reconciliation, the transport boundary and the scorer: 62 mutants, 60/60
+  non-equivalent mutants killed, 2 argued equivalent
+  ([mutation/RESULTS.md](mutation/RESULTS.md)).
 - **Scorer independence:** tests apply harmful effects *around* the runner and require
   the scorer to catch them.
 
@@ -143,7 +144,7 @@ The API has no authentication; run it behind your own authenticated gateway. See
 ## Documentation
 
 [Spec](docs/SPEC.md) · [Evaluation](docs/EVALS.md) · [Transports](docs/INTEGRATION.md) ·
-[Release gates](docs/RELEASE_GATES.md) · [Limitations](docs/LIMITATIONS.md) ·
+[Release gates](docs/RELEASE_GATES.md) · [Review](docs/REVIEW.md) · [Limitations](docs/LIMITATIONS.md) ·
 [Related work](docs/RELATED_WORK.md) · [Name](docs/NAMING.md)
 
 ## License

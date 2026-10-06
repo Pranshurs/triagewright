@@ -6,6 +6,8 @@ Deterministic gates. A release requires all of them.
    tests.
 2. `triagewright eval`: 24 declared arms with 24/24 expected score cards.
 3. `python mutation/run.py`: 0 survived, 0 invalid; equivalent mutants carry a proof.
+   Every test must be deterministic: a kill by a test that can fail by chance is not a
+   kill (see the pass-2 correction in `mutation/RESULTS.md`).
 4. `ruff check .` and `mypy` (strict).
 5. Fresh-venv install from the built wheel, and a Docker compose smoke test.
 

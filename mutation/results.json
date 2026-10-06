@@ -2,7 +2,7 @@
   {
     "id": "A01",
     "result": "KILLED",
-    "detail": "1 failed, 39 passed in 1.09s",
+    "detail": "1 failed, 42 passed in 1.10s",
     "seconds": "1.8",
     "boundary": "approval binding / operator authority",
     "what": "decide a non-pending approval",
@@ -11,8 +11,8 @@
   {
     "id": "A02",
     "result": "KILLED",
-    "detail": "1 failed, 100 passed in 1.53s",
-    "seconds": "2.2",
+    "detail": "1 failed, 112 passed in 1.56s",
+    "seconds": "2.3",
     "boundary": "approval binding / operator authority",
     "what": "ignore drift of the stored request",
     "file": "src/triagewright/runner.py"
@@ -20,8 +20,8 @@
   {
     "id": "A03",
     "result": "KILLED",
-    "detail": "1 failed in 0.85s",
-    "seconds": "1.5",
+    "detail": "1 failed in 0.87s",
+    "seconds": "1.6",
     "boundary": "approval binding / operator authority",
     "what": "ignore drift of the stored binding",
     "file": "src/triagewright/runner.py"
@@ -29,7 +29,7 @@
   {
     "id": "A04",
     "result": "KILLED",
-    "detail": "1 failed, 6 passed in 0.90s",
+    "detail": "1 failed, 6 passed in 0.89s",
     "seconds": "1.6",
     "boundary": "approval binding / operator authority",
     "what": "execute rejected actions",
@@ -38,7 +38,7 @@
   {
     "id": "A05",
     "result": "KILLED",
-    "detail": "1 failed, 37 passed in 1.08s",
+    "detail": "1 failed, 49 passed in 1.13s",
     "seconds": "1.8",
     "boundary": "approval binding / operator authority",
     "what": "execution skips binding re-derivation",
@@ -47,8 +47,8 @@
   {
     "id": "A06",
     "result": "KILLED",
-    "detail": "1 failed, 1 passed in 0.85s",
-    "seconds": "1.5",
+    "detail": "1 failed, 1 passed in 0.86s",
+    "seconds": "1.6",
     "boundary": "approval binding / operator authority",
     "what": "execution skips case identity check",
     "file": "src/triagewright/runner.py"
@@ -56,8 +56,8 @@
   {
     "id": "A07",
     "result": "KILLED",
-    "detail": "1 failed, 2 passed in 0.85s",
-    "seconds": "1.5",
+    "detail": "1 failed, 2 passed in 0.88s",
+    "seconds": "1.6",
     "boundary": "approval binding / operator authority",
     "what": "execution skips policy re-check",
     "file": "src/triagewright/runner.py"
@@ -65,7 +65,7 @@
   {
     "id": "A08",
     "result": "KILLED",
-    "detail": "1 failed, 37 passed in 1.08s",
+    "detail": "1 failed, 49 passed in 1.12s",
     "seconds": "1.8",
     "boundary": "approval binding / operator authority",
     "what": "binding omits arguments",
@@ -74,7 +74,7 @@
   {
     "id": "A09",
     "result": "KILLED",
-    "detail": "1 failed, 98 passed in 1.46s",
+    "detail": "1 failed, 110 passed in 1.49s",
     "seconds": "2.2",
     "boundary": "approval binding / operator authority",
     "what": "binding omits case",
@@ -83,8 +83,8 @@
   {
     "id": "A10",
     "result": "KILLED",
-    "detail": "1 failed, 3 passed in 0.86s",
-    "seconds": "1.5",
+    "detail": "1 failed, 3 passed in 0.88s",
+    "seconds": "1.6",
     "boundary": "approval binding / operator authority",
     "what": "approval not consumed at dispatch",
     "file": "src/triagewright/runner.py"
@@ -92,7 +92,7 @@
   {
     "id": "A11",
     "result": "KILLED",
-    "detail": "1 failed, 94 passed in 1.29s",
+    "detail": "1 failed, 106 passed in 1.31s",
     "seconds": "2.0",
     "boundary": "approval binding / operator authority",
     "what": "duplicate pending requests",
@@ -101,7 +101,7 @@
   {
     "id": "A12",
     "result": "KILLED",
-    "detail": "1 failed, 36 passed in 1.13s",
+    "detail": "1 failed, 48 passed in 1.12s",
     "seconds": "1.8",
     "boundary": "approval binding / operator authority",
     "what": "re-propose rejected actions freely",
@@ -110,8 +110,8 @@
   {
     "id": "A13",
     "result": "EQUIVALENT",
-    "detail": "111 passed in 1.73s",
-    "seconds": "2.4",
+    "detail": "124 passed in 1.77s",
+    "seconds": "2.5",
     "proof": "An observation with step <= cutoff is itself a member of `earlier` (same tool, same args, step <= cutoff), so `o.result not in earlier` is False for it. Removing the step test changes no outcome.",
     "boundary": "approval binding / operator authority",
     "what": "pre-rejection evidence counts as new",
@@ -120,7 +120,7 @@
   {
     "id": "A14",
     "result": "KILLED",
-    "detail": "1 failed, 46 passed in 1.11s",
+    "detail": "1 failed, 58 passed in 1.13s",
     "seconds": "1.8",
     "boundary": "approval binding / operator authority",
     "what": "re-reading unchanged data counts as new",
@@ -129,7 +129,7 @@
   {
     "id": "A15",
     "result": "KILLED",
-    "detail": "1 failed, 3 passed in 0.88s",
+    "detail": "1 failed, 3 passed in 0.86s",
     "seconds": "1.6",
     "boundary": "approval binding / operator authority",
     "what": "reopen any approval",
@@ -138,16 +138,34 @@
   {
     "id": "A16",
     "result": "KILLED",
-    "detail": "1 failed in 0.85s",
+    "detail": "1 failed in 0.86s",
     "seconds": "1.5",
     "boundary": "approval binding / operator authority",
     "what": "consequential actions run without approval",
     "file": "src/triagewright/runner.py"
   },
   {
+    "id": "A17",
+    "result": "KILLED",
+    "detail": "1 failed, 38 passed in 1.08s",
+    "seconds": "1.8",
+    "boundary": "approval binding / operator authority",
+    "what": "pending approvals survive the case closing (review repair, reintroduced)",
+    "file": "src/triagewright/runner.py"
+  },
+  {
+    "id": "A18",
+    "result": "KILLED",
+    "detail": "1 failed, 40 passed in 1.09s",
+    "seconds": "1.8",
+    "boundary": "approval binding / operator authority",
+    "what": "operator may decide on a closed case (review repair, reintroduced)",
+    "file": "src/triagewright/runner.py"
+  },
+  {
     "id": "T01",
     "result": "KILLED",
-    "detail": "1 failed, 2 passed in 0.88s",
+    "detail": "1 failed, 2 passed in 0.86s",
     "seconds": "1.6",
     "boundary": "tenant-scope derivation",
     "what": "no cross-account check",
@@ -156,7 +174,7 @@
   {
     "id": "T02",
     "result": "KILLED",
-    "detail": "1 failed, 4 passed in 0.86s",
+    "detail": "1 failed, 4 passed in 0.89s",
     "seconds": "1.6",
     "boundary": "tenant-scope derivation",
     "what": "get_ticket unscoped",
@@ -174,7 +192,7 @@
   {
     "id": "T04",
     "result": "KILLED",
-    "detail": "1 failed, 41 passed in 1.09s",
+    "detail": "1 failed, 34 passed in 1.08s",
     "seconds": "1.8",
     "boundary": "tenant-scope derivation",
     "what": "contact lookup unscoped",
@@ -183,7 +201,7 @@
   {
     "id": "T05",
     "result": "KILLED",
-    "detail": "1 failed, 55 passed in 1.15s",
+    "detail": "1 failed, 33 passed in 1.07s",
     "seconds": "1.8",
     "boundary": "tenant-scope derivation",
     "what": "internal note unscoped",
@@ -192,7 +210,7 @@
   {
     "id": "T06",
     "result": "KILLED",
-    "detail": "1 failed, 4 passed in 0.86s",
+    "detail": "1 failed, 4 passed in 0.87s",
     "seconds": "1.6",
     "boundary": "tenant-scope derivation",
     "what": "unresolvable reference treated as global",
@@ -201,7 +219,7 @@
   {
     "id": "T07",
     "result": "KILLED",
-    "detail": "1 failed, 51 passed in 1.11s",
+    "detail": "1 failed, 41 passed in 1.08s",
     "seconds": "1.8",
     "boundary": "tenant-scope derivation",
     "what": "payment listing leaks other tenants",
@@ -210,17 +228,44 @@
   {
     "id": "T08",
     "result": "KILLED",
-    "detail": "1 failed, 4 passed in 0.86s",
+    "detail": "1 failed, 4 passed in 0.87s",
     "seconds": "1.6",
     "boundary": "tenant-scope derivation",
     "what": "invoice listing unscoped",
     "file": "src/triagewright/tools/catalog.py"
   },
   {
+    "id": "T09",
+    "result": "KILLED",
+    "detail": "1 failed, 32 passed in 1.08s",
+    "seconds": "1.8",
+    "boundary": "tenant-scope derivation",
+    "what": "get_incident lists every tenant's linked tickets (review B2, reintroduced)",
+    "file": "src/triagewright/tools/catalog.py"
+  },
+  {
+    "id": "T10",
+    "result": "KILLED",
+    "detail": "1 failed, 34 passed in 1.07s",
+    "seconds": "1.8",
+    "boundary": "tenant-scope derivation",
+    "what": "scope denials reveal whether an id exists (review nb1, reintroduced)",
+    "file": "src/triagewright/runner.py"
+  },
+  {
+    "id": "T11",
+    "result": "KILLED",
+    "detail": "1 failed, 34 passed in 1.07s",
+    "seconds": "1.8",
+    "boundary": "tenant-scope derivation",
+    "what": "unknown email treated as global (review nb1 path, reintroduced)",
+    "file": "src/triagewright/tools/catalog.py"
+  },
+  {
     "id": "U01",
     "result": "EQUIVALENT",
-    "detail": "111 passed in 1.69s",
-    "seconds": "2.4",
+    "detail": "124 passed in 1.77s",
+    "seconds": "2.5",
     "proof": "The count only differs while an identical action is UNKNOWN. Every path that creates an action passes the write guard (U06) or executes an approval, and an approval for that binding cannot be requested while the identical action is unknown (same guard). Settlement reuses the stored key, not _key(). So _key() is never evaluated in the differing state.",
     "boundary": "unknown outcome / idempotency",
     "what": "unknown attempts advance the key",
@@ -229,8 +274,8 @@
   {
     "id": "U02",
     "result": "KILLED",
-    "detail": "1 failed, 5 passed in 0.86s",
-    "seconds": "1.5",
+    "detail": "1 failed, 5 passed in 0.87s",
+    "seconds": "1.6",
     "boundary": "unknown outcome / idempotency",
     "what": "key ignores settled attempts",
     "file": "src/triagewright/runner.py"
@@ -238,7 +283,7 @@
   {
     "id": "U03",
     "result": "KILLED",
-    "detail": "1 failed, 9 passed in 0.91s",
+    "detail": "1 failed, 9 passed in 0.92s",
     "seconds": "1.6",
     "boundary": "unknown outcome / idempotency",
     "what": "reconcile mints a fresh key",
@@ -247,7 +292,7 @@
   {
     "id": "U04",
     "result": "KILLED",
-    "detail": "1 failed, 44 passed in 1.09s",
+    "detail": "1 failed, 41 passed in 1.09s",
     "seconds": "1.8",
     "boundary": "unknown outcome / idempotency",
     "what": "transient reconcile error settles as failed",
@@ -256,7 +301,7 @@
   {
     "id": "U05",
     "result": "KILLED",
-    "detail": "1 failed, 7 passed in 0.88s",
+    "detail": "1 failed, 7 passed in 0.91s",
     "seconds": "1.6",
     "boundary": "unknown outcome / idempotency",
     "what": "no reconciliation",
@@ -265,7 +310,7 @@
   {
     "id": "U06",
     "result": "KILLED",
-    "detail": "1 failed, 44 passed in 1.08s",
+    "detail": "1 failed, 56 passed in 1.13s",
     "seconds": "1.8",
     "boundary": "unknown outcome / idempotency",
     "what": "repeat a write whose outcome is unknown",
@@ -274,7 +319,7 @@
   {
     "id": "U07",
     "result": "KILLED",
-    "detail": "1 failed, 40 passed in 1.10s",
+    "detail": "1 failed, 52 passed in 1.12s",
     "seconds": "1.8",
     "boundary": "unknown outcome / idempotency",
     "what": "repeat a succeeded non-repeatable write",
@@ -283,7 +328,7 @@
   {
     "id": "U08",
     "result": "KILLED",
-    "detail": "1 failed, 9 passed in 0.90s",
+    "detail": "1 failed, 9 passed in 0.94s",
     "seconds": "1.6",
     "boundary": "unknown outcome / idempotency",
     "what": "no settlement after restart",
@@ -301,7 +346,7 @@
   {
     "id": "U10",
     "result": "KILLED",
-    "detail": "1 failed, 9 passed in 0.91s",
+    "detail": "1 failed, 9 passed in 0.92s",
     "seconds": "1.6",
     "boundary": "unknown outcome / idempotency",
     "what": "upstream ignores idempotency keys",
@@ -319,7 +364,7 @@
   {
     "id": "U12",
     "result": "KILLED",
-    "detail": "1 failed, 23 passed in 0.99s",
+    "detail": "1 failed, 23 passed in 1.03s",
     "seconds": "1.7",
     "boundary": "unknown outcome / idempotency",
     "what": "runner treats unknown as failed",
@@ -328,7 +373,7 @@
   {
     "id": "U13",
     "result": "KILLED",
-    "detail": "1 failed, 44 passed in 1.09s",
+    "detail": "1 failed, 41 passed in 1.09s",
     "seconds": "1.8",
     "boundary": "unknown outcome / idempotency",
     "what": "case may finish over an unknown write",
@@ -337,7 +382,7 @@
   {
     "id": "X01",
     "result": "KILLED",
-    "detail": "1 failed, 98 passed in 1.48s",
+    "detail": "1 failed, 110 passed in 1.50s",
     "seconds": "2.2",
     "boundary": "transport / service bypass",
     "what": "service drops the shown binding",
@@ -346,7 +391,7 @@
   {
     "id": "X02",
     "result": "KILLED",
-    "detail": "1 failed, 96 passed in 1.37s",
+    "detail": "1 failed, 108 passed in 1.43s",
     "seconds": "2.1",
     "boundary": "transport / service bypass",
     "what": "MCP calls the gateway directly",
@@ -355,8 +400,8 @@
   {
     "id": "X03",
     "result": "KILLED",
-    "detail": "1 failed, 98 passed in 1.45s",
-    "seconds": "2.1",
+    "detail": "1 failed, 110 passed in 1.50s",
+    "seconds": "2.2",
     "boundary": "transport / service bypass",
     "what": "cases share one identity",
     "file": "src/triagewright/service.py"
@@ -364,7 +409,7 @@
   {
     "id": "X04",
     "result": "KILLED",
-    "detail": "1 failed, 6 passed in 0.90s",
+    "detail": "1 failed, 6 passed in 0.89s",
     "seconds": "1.6",
     "boundary": "transport / service bypass",
     "what": "service skips the accepting check",
@@ -373,8 +418,8 @@
   {
     "id": "X05",
     "result": "KILLED",
-    "detail": "1 failed, 99 passed in 1.48s",
-    "seconds": "2.2",
+    "detail": "1 failed, 111 passed in 1.56s",
+    "seconds": "2.3",
     "boundary": "transport / service bypass",
     "what": "operator decision accepts extra fields",
     "file": "src/triagewright/api.py"
@@ -382,7 +427,7 @@
   {
     "id": "C01",
     "result": "KILLED",
-    "detail": "1 failed, 50 passed in 1.10s",
+    "detail": "1 failed, 62 passed in 1.14s",
     "seconds": "1.8",
     "boundary": "independent scorer",
     "what": "ignore forbidden effects",
@@ -391,7 +436,7 @@
   {
     "id": "C02",
     "result": "KILLED",
-    "detail": "1 failed, 8 passed in 0.88s",
+    "detail": "1 failed, 8 passed in 0.89s",
     "seconds": "1.6",
     "boundary": "independent scorer",
     "what": "skip approval-of-effect check",
@@ -400,8 +445,8 @@
   {
     "id": "C03",
     "result": "KILLED",
-    "detail": "1 failed, 89 passed in 1.23s",
-    "seconds": "1.9",
+    "detail": "1 failed, 101 passed in 1.30s",
+    "seconds": "2.0",
     "boundary": "independent scorer",
     "what": "trust runner failure claims",
     "file": "src/triagewright/evals/scorer.py"
@@ -409,7 +454,7 @@
   {
     "id": "C04",
     "result": "KILLED",
-    "detail": "1 failed, 60 passed in 1.12s",
+    "detail": "1 failed, 72 passed in 1.16s",
     "seconds": "1.8",
     "boundary": "independent scorer",
     "what": "ignore business predicates",
@@ -418,8 +463,8 @@
   {
     "id": "C05",
     "result": "KILLED",
-    "detail": "1 failed, 87 passed in 1.22s",
-    "seconds": "1.9",
+    "detail": "1 failed, 99 passed in 1.26s",
+    "seconds": "2.0",
     "boundary": "independent scorer",
     "what": "ignore foreign identifiers",
     "file": "src/triagewright/evals/scorer.py"
@@ -427,8 +472,8 @@
   {
     "id": "C06",
     "result": "KILLED",
-    "detail": "1 failed, 86 passed in 1.22s",
-    "seconds": "1.9",
+    "detail": "1 failed, 36 passed in 1.11s",
+    "seconds": "1.8",
     "boundary": "independent scorer",
     "what": "ignore effects on other accounts",
     "file": "src/triagewright/evals/scorer.py"
@@ -436,8 +481,8 @@
   {
     "id": "C07",
     "result": "KILLED",
-    "detail": "1 failed, 88 passed in 1.23s",
-    "seconds": "1.9",
+    "detail": "1 failed, 100 passed in 1.27s",
+    "seconds": "2.0",
     "boundary": "independent scorer",
     "what": "ignore duplicate effects",
     "file": "src/triagewright/evals/scorer.py"
@@ -445,7 +490,7 @@
   {
     "id": "C08",
     "result": "KILLED",
-    "detail": "1 failed, 7 passed in 0.88s",
+    "detail": "1 failed, 7 passed in 0.89s",
     "seconds": "1.6",
     "boundary": "independent scorer",
     "what": "accept unknown writes in any terminal state",
@@ -454,8 +499,8 @@
   {
     "id": "C09",
     "result": "KILLED",
-    "detail": "1 failed, 58 passed in 1.13s",
-    "seconds": "1.8",
+    "detail": "1 failed, 70 passed in 1.18s",
+    "seconds": "1.9",
     "boundary": "independent scorer",
     "what": "ignore required effects",
     "file": "src/triagewright/evals/scorer.py"
@@ -463,7 +508,7 @@
   {
     "id": "C10",
     "result": "KILLED",
-    "detail": "1 failed, 7 passed in 0.88s",
+    "detail": "1 failed, 7 passed in 0.90s",
     "seconds": "1.6",
     "boundary": "independent scorer",
     "what": "trust the runner's terminal status",
@@ -472,8 +517,8 @@
   {
     "id": "C11",
     "result": "KILLED",
-    "detail": "1 failed, 50 passed in 1.10s",
-    "seconds": "1.8",
+    "detail": "1 failed, 62 passed in 1.15s",
+    "seconds": "1.9",
     "boundary": "independent scorer",
     "what": "skip grounding re-check",
     "file": "src/triagewright/evals/scorer.py"
@@ -481,7 +526,7 @@
   {
     "id": "C12",
     "result": "KILLED",
-    "detail": "1 failed, 8 passed in 0.89s",
+    "detail": "1 failed, 8 passed in 0.92s",
     "seconds": "1.6",
     "boundary": "independent scorer",
     "what": "approval matched without arguments",
@@ -490,8 +535,8 @@
   {
     "id": "C13",
     "result": "KILLED",
-    "detail": "1 failed, 109 passed in 1.68s",
-    "seconds": "2.4",
+    "detail": "1 failed, 37 passed in 1.10s",
+    "seconds": "1.8",
     "boundary": "independent scorer",
     "what": "rejected approvals count as approved",
     "file": "src/triagewright/evals/scorer.py"
@@ -499,10 +544,19 @@
   {
     "id": "C14",
     "result": "KILLED",
-    "detail": "1 failed, 90 passed in 1.23s",
-    "seconds": "1.9",
+    "detail": "1 failed, 102 passed in 1.29s",
+    "seconds": "2.0",
     "boundary": "independent scorer",
     "what": "trust runner success claims",
+    "file": "src/triagewright/evals/scorer.py"
+  },
+  {
+    "id": "C15",
+    "result": "KILLED",
+    "detail": "1 failed, 35 passed in 1.09s",
+    "seconds": "1.8",
+    "boundary": "independent scorer",
+    "what": "scorer ignores delivery/job references (review B3, reintroduced)",
     "file": "src/triagewright/evals/scorer.py"
   }
 ]

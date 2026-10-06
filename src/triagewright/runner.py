@@ -171,6 +171,8 @@ class Runner:
             raise KeyError(approval_id)
         if ap.status is not ApprovalStatus.PENDING:
             raise StaleApproval(f"approval {approval_id} is {ap.status.value}, not pending")
+        if self.state.status.terminal:
+            raise StaleApproval(f"case is {self.state.status.value}; approvals are closed")
         if expected_binding is not None:
             current = binding(self.state.case.id, self.state.case.account_id, ap.tool, ap.args)
             if expected_binding != ap.binding or expected_binding != current:
@@ -216,6 +218,10 @@ class Runner:
         self.trace.emit("policy", step=s.step, tool=tool.name, args=args,
                         verdict=verdict.verdict.value, rule=verdict.rule, reason=verdict.reason)
         if verdict.verdict is Verdict.DENY:
+            if verdict.rule.startswith("scope."):
+                # Same answer for "does not exist" and "belongs to someone else", so a
+                # denial cannot be used to probe other tenants' identifiers.
+                return f"denied by policy (scope): {tool.name} is not available for this case"
             return f"denied by policy ({verdict.rule}): {verdict.reason}"
 
         if tool.effect.writes:
@@ -460,6 +466,14 @@ class Runner:
         self.state.status = status
         self.state.status_reason = reason
         self.trace.emit("case_status", status=status.value, reason=reason)
+        if status.terminal:
+            # A closed case carries no write authority: anything still waiting for an
+            # operator expires with it.
+            for ap in self.state.pending_approvals():
+                ap.status = ApprovalStatus.REJECTED
+                ap.note = f"expired: case ended {status.value}"
+                ap.decided_step = self.state.step
+                self.trace.emit("approval_expired", approval_id=ap.id, status=status.value)
 
 
 def _records(node: Any) -> Iterator[dict[str, Any]]:
