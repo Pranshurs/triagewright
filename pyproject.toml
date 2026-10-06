@@ -41,3 +41,7 @@ files = ["src/triagewright"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# Mutants quote source lines verbatim.
+"mutation/mutants.py" = ["E501"]
