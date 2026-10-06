@@ -43,6 +43,16 @@ def main(argv: list[str] | None = None) -> int:
     ot = sub.add_parser("otel", help="print a case's trace as OTLP/JSON")
     ot.add_argument("case_id")
     ot.add_argument("--runs", type=Path, default=Path("runs"))
+    lv = sub.add_parser("live", help="drive scenarios with a compatible model endpoint "
+                                     "(demonstration, not a release gate)")
+    lv.add_argument("--model", required=True)
+    lv.add_argument("--base-url", default="http://127.0.0.1:8080/v1")
+    lv.add_argument("--api-key-env", default="TRIAGEWRIGHT_MODEL_KEY",
+                    help="name of the environment variable holding the key")
+    lv.add_argument("--scenarios", default="S01,S03,S05,S08,S09,S10")
+    lv.add_argument("--temperature", type=float, default=0.0)
+    lv.add_argument("--max-tokens", type=int, default=1200)
+    lv.add_argument("--out", type=Path, default=Path("runs/live"))
     ev = sub.add_parser("eval", help="run and score every scenario arm")
     ev.add_argument("--json", type=Path, help="write the score cards as JSON")
     a = p.parse_args(argv)
@@ -97,6 +107,15 @@ def main(argv: list[str] | None = None) -> int:
 
         svc = CaseService(a.runs)
         print(json.dumps(otlp_json(svc.trace(a.case_id), a.case_id), indent=2))
+        return 0
+    if a.cmd == "live":
+        from triagewright.live import markdown, run_live
+
+        rep = run_live(a.model, a.base_url, tuple(x.strip().upper() for x in
+                                                  a.scenarios.split(",")),
+                       out=a.out, temperature=a.temperature, max_tokens=a.max_tokens,
+                       api_key_env=a.api_key_env)
+        print(markdown(rep))
         return 0
     if a.cmd == "eval":
         results = run_all()
