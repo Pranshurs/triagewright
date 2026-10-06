@@ -17,7 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from triagewright.env.faults import FaultKind, FaultPlan
+from triagewright.env.faults import FaultKind, FaultPlan, SimulatedCrash
 from triagewright.env.store import Environment
 
 
@@ -161,6 +161,8 @@ class Gateway:
             )
         if fault is FaultKind.TIMEOUT_BEFORE_EFFECT:
             return self._timeout(tool)
+        if fault is FaultKind.CRASH_BEFORE_EFFECT:
+            raise SimulatedCrash(name)
         if fault is FaultKind.MALFORMED:
             return ToolResult(
                 Outcome.UNKNOWN if tool.effect.writes else Outcome.ERROR,
@@ -176,6 +178,8 @@ class Gateway:
                               retryable=e.retryable)
         if fault is FaultKind.TIMEOUT_AFTER_EFFECT:
             return self._timeout(tool)
+        if fault is FaultKind.CRASH_AFTER_EFFECT:
+            raise SimulatedCrash(name)
         return result
 
     def _timeout(self, tool: Tool) -> ToolResult:
@@ -205,5 +209,8 @@ class Gateway:
                 "idempotency",
                 {"key": key, "tool": tool.name, "args_hash": h, "result": json.dumps(data)},
             )
+            self.env.insert("effect_log", {
+                "tool": tool.name, "args": canonical_args(parsed.model_dump(mode="json")),
+                "idempotency_key": key, "applied_at": self.env.now()})
         self.env.tick()
         return ToolResult(Outcome.OK, data=data)

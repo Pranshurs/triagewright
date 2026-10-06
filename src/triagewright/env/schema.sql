@@ -149,3 +149,19 @@ CREATE TABLE idempotency (
     args_hash TEXT NOT NULL,
     result TEXT NOT NULL
 );
+
+-- Upstream-side journal of every write that took effect (first application only).
+-- Kept by the systems, not by the agent: the scorer judges history from here.
+CREATE TABLE effect_log (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool TEXT NOT NULL,
+    args TEXT NOT NULL,              -- JSON
+    idempotency_key TEXT NOT NULL,
+    applied_at TEXT NOT NULL
+);
+
+-- Logical clock and id counters, so a reopened environment continues where it stopped.
+CREATE TABLE meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);

@@ -70,6 +70,7 @@ class ApprovalStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EXECUTED = "executed"
+    REOPENED = "reopened"   # an operator withdrew a rejection; a new request may follow
 
 
 def binding(case_id: str, account_id: str, tool: str, args: dict[str, Any]) -> str:
@@ -89,15 +90,28 @@ class Approval(BaseModel):
     evidence: list[str]
     status: ApprovalStatus = ApprovalStatus.PENDING
     requested_step: int
+    decided_step: int | None = None
     decided_by: str | None = None
     note: str | None = None
     action_id: str | None = None
 
 
+class Fact(BaseModel):
+    """An atomic claim: in observation `obs`, record `record` has `field` == `value`.
+
+    Binding the value to a record and field stops a real value from the wrong entity
+    (for example the amount of a different payment) from passing as support.
+    """
+    obs: str
+    record: str          # matched against the record's id (or feature / code key)
+    field: str
+    value: str | int | bool | None
+
+
 class Finding(BaseModel):
     claim: str
     evidence: list[str] = Field(default_factory=list)  # observation ids
-    values: list[str] = Field(default_factory=list)    # ids/amounts the claim relies on
+    facts: list[Fact] = Field(default_factory=list)
     grounded: bool | None = None                       # set by the runner
 
 

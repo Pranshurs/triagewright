@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,7 @@ from triagewright.state import (
     ApprovalStatus,
     CaseState,
     CaseStatus,
+    Fact,
     Observation,
     Resolution,
     binding,
@@ -49,13 +51,15 @@ class Budget:
 
 class Runner:
     def __init__(self, state: CaseState, env: Environment, gateway: Gateway, model: Model,
-                 trace: Trace, budget: Budget | None = None) -> None:
+                 trace: Trace, budget: Budget | None = None,
+                 checkpoint: Callable[[CaseState], None] | None = None) -> None:
         self.state = state
         self.env = env
         self.gw = gateway
         self.model = model
         self.trace = trace
         self.budget = budget or Budget()
+        self._checkpoint = checkpoint or (lambda _s: None)
         self._feedback: str | None = None
 
     # -- public API ----------------------------------------------------------------
@@ -66,6 +70,8 @@ class Runner:
         if s.status is CaseStatus.OPEN:
             self.trace.emit("case_opened", case=s.case.model_dump())
             self._set_status(CaseStatus.INVESTIGATING, "intake")
+        self._settle_outstanding()
+        self._maybe_resume_after_approvals()
         while not s.status.terminal and s.status is not CaseStatus.AWAITING_APPROVAL:
             if s.step >= self.budget.max_steps or s.tool_calls >= self.budget.max_tool_calls:
                 self.trace.emit("budget_exhausted", step=s.step, tool_calls=s.tool_calls)
@@ -87,7 +93,21 @@ class Runner:
                 self._ask(decision)
             else:
                 self._finish(decision)
+            self._checkpoint(s)
+        self._checkpoint(s)
         return s.status
+
+    def _settle_outstanding(self) -> None:
+        """After a restart: settle writes that were dispatched but never answered.
+
+        Uses the key persisted before dispatch. This is settlement of the original
+        effect, not a new action, and consumes no new approval.
+        """
+        for rec in self.state.actions:
+            if rec.status is ActionStatus.UNKNOWN and rec.observation_id is None:
+                self.trace.emit("resume_settlement", action_id=rec.id,
+                                idempotency_key=rec.idempotency_key)
+                self._reconcile(rec)
 
     def decide_approval(self, approval_id: str, approve: bool, operator: str,
                         note: str | None = None) -> Approval:
@@ -99,13 +119,28 @@ class Runner:
             raise ValueError(f"approval {approval_id} is {ap.status.value}, not pending")
         ap.status = ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED
         ap.decided_by, ap.note = operator, note
+        ap.decided_step = self.state.step
         self.trace.emit("approval_decided", approval_id=ap.id, approved=approve,
                         operator=operator, note=note)
         if approve:
             self._execute_approved(ap)
+        self._maybe_resume_after_approvals()
+        self._checkpoint(self.state)
+        return ap
+
+    def _maybe_resume_after_approvals(self) -> None:
         if self.state.status is CaseStatus.AWAITING_APPROVAL and not self.state.pending_approvals():
             self._set_status(CaseStatus.INVESTIGATING, "operator decided all approvals")
             self._feedback = "operator decisions recorded; review approvals and actions"
+
+    def reopen(self, approval_id: str, operator: str, note: str) -> Approval:
+        """Operator withdraws a rejection so the action may be requested again."""
+        ap = next((a for a in self.state.approvals if a.id == approval_id), None)
+        if ap is None or ap.status is not ApprovalStatus.REJECTED:
+            raise ValueError(f"{approval_id} is not a rejected approval")
+        ap.status = ApprovalStatus.REOPENED
+        self.trace.emit("approval_reopened", approval_id=ap.id, operator=operator, note=note)
+        self._checkpoint(self.state)
         return ap
 
     # -- tool use ----------------------------------------------------------------------
@@ -125,7 +160,7 @@ class Runner:
             return f"denied by policy ({verdict.rule}): {verdict.reason}"
 
         if tool.effect.writes:
-            blocked = self._write_guard(tool.name, args)
+            blocked = self._write_guard(tool.name, args, d.evidence)
             if blocked:
                 self.trace.emit("rejected", step=s.step, tool=tool.name, code="WRITE_GUARD",
                                 reason=blocked)
@@ -134,12 +169,12 @@ class Runner:
         if verdict.verdict is Verdict.NEEDS_APPROVAL:
             return self._request_approval(tool.name, args, d)
         if tool.effect.writes:
-            rec = self._execute_write(tool.name, args, approval_id=None)
+            rec = self._execute_write(tool.name, args, approval=None)
             return f"{rec.status.value}: {rec.detail or ''}".strip()
         obs = self._read(tool.name, args)
         return f"observed {obs.id}"
 
-    def _write_guard(self, tool: str, args: dict[str, Any]) -> str | None:
+    def _write_guard(self, tool: str, args: dict[str, Any], evidence: list[str]) -> str | None:
         same = [a for a in self.state.actions if a.tool == tool and a.args == args]
         if any(a.status is ActionStatus.UNKNOWN for a in same):
             return "an identical write has an unknown outcome and is being reconciled"
@@ -147,11 +182,29 @@ class Runner:
             return "an identical write already succeeded; not repeating it"
         b = binding(self.state.case.id, self.state.case.account_id, tool, args)
         for ap in self.state.approvals:
-            if ap.binding == b and ap.status is ApprovalStatus.PENDING:
+            if ap.binding != b:
+                continue
+            if ap.status is ApprovalStatus.PENDING:
                 return f"already awaiting operator approval {ap.id}"
-            if ap.binding == b and ap.status is ApprovalStatus.REJECTED:
-                return f"operator rejected this exact action ({ap.id})"
+            if ap.status is ApprovalStatus.REJECTED and not self._new_evidence(ap, evidence):
+                return (f"REJECTED_REPEAT: operator rejected this exact action ({ap.id}); "
+                        "only new evidence or an operator reopen allows a new request")
         return None
+
+    def _new_evidence(self, rejected: Approval, cited: list[str]) -> bool:
+        """True if the proposal cites an observation made after the rejection that shows
+        something no earlier observation of the same call showed (re-reading unchanged
+        data is not new evidence)."""
+        cutoff = rejected.decided_step if rejected.decided_step is not None else 0
+        for oid in cited:
+            o = self.state.obs(oid)
+            if o is None or o.step <= cutoff:
+                continue
+            earlier = [p.result for p in self.state.observations
+                       if p.tool == o.tool and p.args == o.args and p.step <= cutoff]
+            if o.ok and o.result not in earlier:
+                return True
+        return False
 
     def _read(self, tool: str, args: dict[str, Any]) -> Observation:
         attempts = 0
@@ -186,13 +239,20 @@ class Runner:
         return "tw_" + hashlib.sha256(material.encode()).hexdigest()[:24]
 
     def _execute_write(self, tool: str, args: dict[str, Any],
-                       approval_id: str | None) -> ActionRecord:
+                       approval: Approval | None) -> ActionRecord:
         s = self.state
         rec = ActionRecord(id=f"act_{len(s.actions) + 1:03d}", tool=tool, args=args,
                            idempotency_key=self._key(tool, args), status=ActionStatus.UNKNOWN,
-                           approval_id=approval_id)
+                           approval_id=approval.id if approval else None)
         s.actions.append(rec)
+        if approval is not None:  # consumed by this dispatch, whatever its outcome
+            approval.status = ApprovalStatus.EXECUTED
+            approval.action_id = rec.id
         s.tool_calls += 1
+        # Persist the key (and the consumed approval) before the request leaves, so a
+        # crash after this line can only settle this action, never mint a new one.
+        self._checkpoint(s)
+        approval_id = rec.approval_id
         r = self.gw.invoke(tool, args, rec.idempotency_key)
         self.trace.emit("tool_call", tool=tool, args=args, action_id=rec.id,
                         idempotency_key=rec.idempotency_key, approval_id=approval_id,
@@ -271,9 +331,7 @@ class Runner:
             ap.status = ApprovalStatus.REJECTED
             ap.note = f"voided: {verdict.reason}"
             return
-        rec = self._execute_write(tool.name, args, approval_id=ap.id)
-        ap.status = ApprovalStatus.EXECUTED
-        ap.action_id = rec.id
+        self._execute_write(tool.name, args, approval=ap)
 
     # -- ending ------------------------------------------------------------------------
 
@@ -307,25 +365,49 @@ class Runner:
                              f"model requested {res.outcome!r}")
 
     def _ground(self, res: Resolution) -> list[str]:
-        """Every finding must cite observations that exist and contain the values it names."""
+        """Each finding must cite observations that exist, and each of its facts must be
+        a field of a specific record inside one of the cited observations."""
         problems: list[str] = []
         for i, f in enumerate(res.findings, 1):
             mine: list[str] = []
-            cited = [self.state.obs(e) for e in f.evidence]
             if not f.evidence:
                 mine.append(f"finding {i} cites no evidence")
-            for e, o in zip(f.evidence, cited, strict=True):
-                if o is None:
+            for e in f.evidence:
+                if self.state.obs(e) is None:
                     mine.append(f"finding {i} cites {e}, which was never observed")
-            blob = " ".join(json.dumps(o.result, default=str) for o in cited if o is not None)
-            for v in f.values:
-                if v not in blob:
-                    mine.append(f"finding {i}: {v!r} not in cited observations")
+            for fact in f.facts:
+                why = self._check_fact(fact, f.evidence)
+                if why:
+                    mine.append(f"finding {i}: {why}")
             f.grounded = not mine
             problems.extend(mine)
         return problems
+
+    def _check_fact(self, fact: Fact, cited: list[str]) -> str | None:
+        if fact.obs not in cited:
+            return f"fact uses {fact.obs}, which the finding does not cite"
+        o = self.state.obs(fact.obs)
+        if o is None or not o.ok:
+            return f"{fact.obs} is not a successful observation"
+        records = [r for r in _records(o.result) if fact.record in
+                   (r.get("id"), r.get("feature"), r.get("code"), r.get("job_id"))]
+        if not records:
+            return f"{fact.obs} has no record {fact.record!r}"
+        if not any(fact.field in r and r[fact.field] == fact.value for r in records):
+            return f"{fact.record}.{fact.field} is not {fact.value!r} in {fact.obs}"
+        return None
 
     def _set_status(self, status: CaseStatus, reason: str) -> None:
         self.state.status = status
         self.state.status_reason = reason
         self.trace.emit("case_status", status=status.value, reason=reason)
+
+
+def _records(node: Any) -> Iterator[dict[str, Any]]:
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from _records(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _records(v)

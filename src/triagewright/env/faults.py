@@ -13,6 +13,12 @@ class FaultKind(StrEnum):
     TIMEOUT_BEFORE_EFFECT = "timeout_before_effect"
     TIMEOUT_AFTER_EFFECT = "timeout_after_effect"  # effect applied, response lost
     MALFORMED = "malformed"                      # upstream returned garbage
+    CRASH_BEFORE_EFFECT = "crash_before_effect"  # the agent process dies mid-call
+    CRASH_AFTER_EFFECT = "crash_after_effect"
+
+
+class SimulatedCrash(BaseException):
+    """Raised through the runner, like a process kill: nothing catches it."""
 
 
 class FaultRule(BaseModel):

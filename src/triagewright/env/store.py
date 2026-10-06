@@ -51,9 +51,7 @@ class Environment:
         unknown = set(fixture) - set(TABLES)
         if unknown:
             raise ValueError(f"unknown fixture tables: {sorted(unknown)}")
-        self._conn = sqlite3.connect(str(path), isolation_level=None)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA foreign_keys = ON")
+        self._connect(path)
         self._conn.executescript(_schema())
         self._clock = datetime.fromisoformat(now)
         self._counters: dict[str, int] = {}
@@ -61,6 +59,26 @@ class Environment:
             for table in TABLES:
                 for row in fixture.get(table, ()):
                     self.insert(table, row)
+            self._save_meta()
+
+    @classmethod
+    def open(cls, path: str | Path) -> Environment:
+        """Reopen a file-backed environment, e.g. after a process restart."""
+        env = cls.__new__(cls)
+        env._connect(path)
+        meta = {r["key"]: r["value"] for r in env.query("SELECT key, value FROM meta")}
+        env._clock = datetime.fromisoformat(meta["clock"])
+        env._counters = json.loads(meta["counters"])
+        return env
+
+    def _connect(self, path: str | Path) -> None:
+        self._conn = sqlite3.connect(str(path), isolation_level=None)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA foreign_keys = ON")
+
+    def _save_meta(self) -> None:
+        for k, v in (("clock", self.now()), ("counters", json.dumps(self._counters))):
+            self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (k, v))
 
     # -- clock and ids -------------------------------------------------------------
 
@@ -69,11 +87,20 @@ class Environment:
 
     def tick(self, minutes: int = 1) -> None:
         self._clock += timedelta(minutes=minutes)
+        self._save_meta()
 
     def new_id(self, prefix: str) -> str:
         n = self._counters.get(prefix, 0) + 1
         self._counters[prefix] = n
+        self._save_meta()
         return f"{prefix}_new{n:03d}"
+
+    def effects(self) -> list[Row]:
+        """Upstream journal of applied writes, oldest first."""
+        rows = self.query("SELECT * FROM effect_log ORDER BY seq")
+        for r in rows:
+            r["args"] = json.loads(r["args"])
+        return rows
 
     # -- data access ---------------------------------------------------------------
 
@@ -100,7 +127,7 @@ class Environment:
         return self._conn.execute(sql, tuple(params)).rowcount
 
     def insert(self, table: str, row: Mapping[str, Any]) -> None:
-        if table not in TABLES and table != "idempotency":
+        if table not in TABLES and table not in ("idempotency", "effect_log"):
             raise ValueError(f"unknown table {table}")
         cols = list(row)
         values = [

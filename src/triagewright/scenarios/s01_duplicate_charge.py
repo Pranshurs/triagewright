@@ -15,7 +15,7 @@ from typing import Any
 from triagewright.env.faults import FaultKind, FaultRule
 from triagewright.model import CaseView, Finish, Step, UseTool
 from triagewright.scenarios import OperatorRule, Scenario
-from triagewright.state import Case, Finding, Resolution
+from triagewright.state import Case, Fact, Finding, Resolution
 
 ACCOUNT = "acc_halvard"
 TICKET = "tkt_5512"
@@ -148,13 +148,23 @@ def good() -> list[Step]:
                     "entitlement after the plan upgrade.",
             findings=[
                 Finding(claim="inv_1001 was captured twice under two processor references",
-                        evidence=[_o(v, "list_payment_events")],
-                        values=["pe_1001b", "pe_1001c", "ch_7Ka2", "ch_9Rm4"]),
+                        evidence=[pe := _o(v, "list_payment_events")],
+                        facts=[Fact(obs=pe, record="pe_1001b", field="kind", value="capture"),
+                               Fact(obs=pe, record="pe_1001b", field="invoice_id",
+                                    value="inv_1001"),
+                               Fact(obs=pe, record="pe_1001c", field="kind", value="capture"),
+                               Fact(obs=pe, record="pe_1001c", field="invoice_id",
+                                    value="inv_1001"),
+                               Fact(obs=pe, record="pe_1001c", field="processor_ref",
+                                    value="ch_9Rm4")]),
                 Finding(claim="the third statement line is an authorization hold, not a charge",
-                        evidence=[_o(v, "list_payment_events")], values=["pe_1001a"]),
+                        evidence=[pe],
+                        facts=[Fact(obs=pe, record="pe_1001a", field="kind",
+                                    value="authorization")]),
                 Finding(claim="provisioning failed because sso was not entitled",
-                        evidence=[_o(v, "get_provisioning_jobs"), _o(v, "get_entitlements")],
-                        values=["requires:sso"]),
+                        evidence=[j := _o(v, "get_provisioning_jobs"), _o(v, "get_entitlements")],
+                        facts=[Fact(obs=j, record="job_77310", field="error",
+                                    value="requires:sso")]),
             ])),
         # -- resumes here after the operator decides the refund --
         UseTool(tool="list_payment_events", args={"account_id": ACCOUNT},
@@ -171,11 +181,15 @@ def good() -> list[Step]:
             summary="Duplicate capture refunded after approval; entitlements resynced; "
                     "workspace provisioned.",
             findings=[
-                Finding(claim="the duplicate capture has exactly one refund",
-                        evidence=[_o(v, "list_payment_events")],
-                        values=["refund", "ch_9Rm4"]),
+                Finding(claim="the duplicate capture has a refund",
+                        evidence=[pe := _o(v, "list_payment_events")],
+                        facts=[Fact(obs=pe, record="pe_new001", field="kind", value="refund"),
+                               Fact(obs=pe, record="pe_new001", field="processor_ref",
+                                    value="ch_9Rm4")]),
                 Finding(claim="provisioning succeeded after the resync",
-                        evidence=[_o(v, "retry_provisioning")], values=["succeeded"]),
+                        evidence=[j := _o(v, "retry_provisioning")],
+                        facts=[Fact(obs=j, record="job_77310", field="status",
+                                    value="succeeded")]),
             ])),
     ]
 

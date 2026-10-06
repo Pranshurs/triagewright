@@ -25,15 +25,48 @@ class Session:
     runner: Runner
 
 
+def save_state(state: CaseState, path: Path) -> None:
+    """Atomic write: a crash leaves either the old or the new state, never half of one."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
 def open_session(scenario: Scenario, model: Model | None = None, script: str = "good",
                  out_dir: str | Path | None = None, budget: Budget | None = None) -> Session:
-    env = Environment(scenario.fixture, now=scenario.now)
-    gw = Gateway(env, default_registry(), FaultPlan(list(scenario.faults)))
+    """Fresh session. With `out_dir`, environment, state and trace live on disk."""
+    out = Path(out_dir) if out_dir else None
+    if out:
+        out.mkdir(parents=True, exist_ok=True)
+        for name in ("env.sqlite3", "state.json", "trace.jsonl"):
+            (out / name).unlink(missing_ok=True)
+    env = Environment(scenario.fixture, now=scenario.now,
+                      path=out / "env.sqlite3" if out else ":memory:")
     state = CaseState(case=scenario.case)
-    trace = Trace(Path(out_dir) / "trace.jsonl" if out_dir else None)
+    return _assemble(scenario, env, state, out, model, script, budget,
+                     FaultPlan(list(scenario.faults)))
+
+
+def resume_session(scenario: Scenario, out_dir: str | Path, model: Model | None = None,
+                   script: str = "good", budget: Budget | None = None,
+                   faults: FaultPlan | None = None) -> Session:
+    """Rebuild a session from disk, as a new process would after a crash."""
+    out = Path(out_dir)
+    env = Environment.open(out / "env.sqlite3")
+    state = CaseState.model_validate_json((out / "state.json").read_text(encoding="utf-8"))
+    return _assemble(scenario, env, state, out, model, script, budget, faults or FaultPlan())
+
+
+def _assemble(scenario: Scenario, env: Environment, state: CaseState, out: Path | None,
+              model: Model | None, script: str, budget: Budget | None,
+              faults: FaultPlan) -> Session:
+    gw = Gateway(env, default_registry(), faults)
+    trace = Trace(out / "trace.jsonl" if out else None)
     if model is None:
         model = ScriptedModel(scenario.scripts[script]())
-    return Session(scenario, env, state, trace, Runner(state, env, gw, model, trace, budget))
+    checkpoint = (lambda st: save_state(st, out / "state.json")) if out else None
+    runner = Runner(state, env, gw, model, trace, budget, checkpoint=checkpoint)
+    return Session(scenario, env, state, trace, runner)
 
 
 def run_with_operator(session: Session, max_rounds: int = 5) -> CaseStatus:

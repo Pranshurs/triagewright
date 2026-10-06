@@ -176,16 +176,92 @@ def test_unresolvable_unknown_blocks_retry_and_resolution() -> None:
 
 
 def test_ungrounded_findings_are_rejected_then_flagged() -> None:
-    from triagewright.state import Finding
+    from triagewright.state import Fact, Finding
 
     bad = Finish(resolution=Resolution(
         outcome="resolved", diagnosis="x", summary="x",
-        findings=[Finding(claim="refund pe_9999 exists", evidence=["obs_001"],
-                          values=["pe_9999"]),
-                  Finding(claim="made up", evidence=["obs_404"])]))
-    s = session([UseTool(tool="list_payment_events", args={"account_id": ACC}), bad, bad, bad],
+        findings=[
+            # real value, wrong entity: pe_1001a is the authorization, though "capture"
+            # and 480000 both appear in the same observation
+            Finding(claim="pe_1001a is a second charge", evidence=["obs_001"],
+                    facts=[Fact(obs="obs_001", record="pe_1001a", field="kind",
+                                value="capture")]),
+            Finding(claim="refund pe_9999 exists", evidence=["obs_001"],
+                    facts=[Fact(obs="obs_001", record="pe_9999", field="kind",
+                                value="refund")]),
+            Finding(claim="made up", evidence=["obs_404"]),
+            Finding(claim="right fact, uncited observation", evidence=["obs_001"],
+                    facts=[Fact(obs="obs_002", record="pe_1001a", field="kind",
+                                value="authorization")]),
+        ]))
+    good = Finding(claim="pe_1001a is a hold", evidence=["obs_001"],
+                   facts=[Fact(obs="obs_001", record="pe_1001a", field="kind",
+                               value="authorization")])
+    s = session([UseTool(tool="list_payment_events", args={"account_id": ACC}), bad, bad,
+                 Finish(resolution=bad.resolution.model_copy(
+                     update={"findings": [*bad.resolution.findings, good]}, deep=True))],
                 faults=())
     s.runner.run()
     assert len(s.trace.of("finish_rejected")) == 2
     res = s.state.resolution
-    assert res is not None and [f.grounded for f in res.findings] == [False, False]
+    assert res is not None
+    assert [f.grounded for f in res.findings] == [False, False, False, False, True]
+
+
+# -- rejection is bound to the exact proposal, not a permanent ban ---------------------
+
+
+def _reject_all(s: Session) -> None:
+    for ap in s.state.pending_approvals():
+        s.runner.decide_approval(ap.id, False, "op", "not convinced")
+
+
+def test_rejected_proposal_cannot_be_nagged_with_unchanged_evidence() -> None:
+    pe_read = UseTool(tool="list_payment_events", args={"account_id": ACC})
+    s = session([pe_read,
+                 lambda v: UseTool(tool="issue_refund", args=REFUND, evidence=["obs_001"]),
+                 done(),
+                 pe_read,  # re-read: same data as before the rejection
+                 lambda v: UseTool(tool="issue_refund", args=REFUND, evidence=["obs_002"]),
+                 UseTool(tool="issue_refund", args=REFUND), done()], faults=())
+    assert s.runner.run() is CaseStatus.AWAITING_APPROVAL
+    _reject_all(s)
+    s.runner.run()
+    repeats = [e for e in s.trace.of("rejected") if "REJECTED_REPEAT" in e["reason"]]
+    assert len(repeats) == 2
+    assert len(s.state.approvals) == 1 and refunds(s) == []
+
+
+def test_materially_new_evidence_allows_a_new_request() -> None:
+    holder: dict[str, Session] = {}
+
+    def billing_changes(v: object) -> UseTool:
+        # Upstream state changes after the rejection (a chargeback dispute lands).
+        holder["s"].env.insert("payment_events", {
+            "id": "pe_dispute", "account_id": ACC, "invoice_id": "inv_1001",
+            "kind": "auth_expired", "amount_cents": 480000, "currency": "EUR",
+            "processor_ref": "ch_7Ka2", "created_at": "2026-10-06T08:30:00",
+            "expires_at": None})
+        return UseTool(tool="list_payment_events", args={"account_id": ACC})
+
+    s = session([UseTool(tool="list_payment_events", args={"account_id": ACC}),
+                 lambda v: UseTool(tool="issue_refund", args=REFUND, evidence=["obs_001"]),
+                 done(), billing_changes,
+                 lambda v: UseTool(tool="issue_refund", args=REFUND, evidence=["obs_002"]),
+                 done()], faults=())
+    holder["s"] = s
+    s.runner.run()
+    _reject_all(s)
+    assert s.runner.run() is CaseStatus.AWAITING_APPROVAL
+    assert [a.status for a in s.state.approvals] == [ApprovalStatus.REJECTED,
+                                                     ApprovalStatus.PENDING]
+
+
+def test_operator_reopen_allows_a_new_request() -> None:
+    s = session([UseTool(tool="issue_refund", args=REFUND), done(),
+                 UseTool(tool="issue_refund", args=REFUND), done()], faults=())
+    s.runner.run()
+    _reject_all(s)
+    s.runner.reopen(s.state.approvals[0].id, "op", "customer sent bank statement")
+    assert s.runner.run() is CaseStatus.AWAITING_APPROVAL
+    assert len(s.state.pending_approvals()) == 1
