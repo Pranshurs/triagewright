@@ -19,7 +19,8 @@ from triagewright.env.store import Environment
 from triagewright.hubspot.client import HubSpotClient
 from triagewright.tools.base import Effect, External, Registry, Tool, ToolError
 
-HubSpotId = Field(pattern=r"^[0-9]{1,20}$")
+# No leading zero: one record must have exactly one spelling of its id.
+HubSpotId = Field(pattern=r"^[1-9][0-9]{0,19}$")
 
 TICKET = ("subject", "content", "hs_pipeline_stage", "hs_ticket_priority", "createdate")
 CONTACT = ("firstname", "lastname", "email")

@@ -4,7 +4,8 @@ usage: python mutation/run.py [--only ID,ID] [--out mutation/results.json]
 
 Each mutant: copy src+tests to a scratch dir, apply the edit, run pytest with that
 copy first on the path (asserted), record KILLED / SURVIVED / INVALID. The baseline
-(unmutated copy) must pass first or nothing is reported.
+(unmutated copy) must pass first or nothing is reported. A suite run that does not
+finish within TIMEOUT counts as a kill and says so in its detail.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from mutants import MUTANTS, Mutant  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
+TIMEOUT = 120  # seconds per suite run; the suite itself takes a few
 
 
 def _copy(dst: Path) -> None:
@@ -42,8 +44,13 @@ def _pytest(tree: Path) -> tuple[int, str]:
     loaded = probe.stdout.strip()
     if not loaded.startswith(str(tree)):
         raise SystemExit(f"wrong tree imported: {loaded}")
-    p = subprocess.run([sys.executable, "-m", "pytest", "-x", "-q", "-p", "no:cacheprovider",
-                        "tests"], env=env, capture_output=True, text=True, cwd=tree)
+    try:
+        p = subprocess.run([sys.executable, "-m", "pytest", "-x", "-q", "-p",
+                            "no:cacheprovider", "tests"], env=env, capture_output=True,
+                           text=True, cwd=tree, timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        # A mutant that makes the suite hang is detected, the same as a failing test.
+        return 124, f"suite did not finish within {TIMEOUT}s"
     return p.returncode, p.stdout.strip().splitlines()[-1] if p.stdout.strip() else p.stderr[-300:]
 
 

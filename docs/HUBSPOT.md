@@ -46,7 +46,9 @@ An operator declares which HubSpot company is which account
 (`triagewright hubspot link <account_id> <company_id>`). A record belongs to an account
 only if all of its companies are linked to that one account. Anything else, including a
 record that does not exist or a HubSpot outage, is denied with the same scope message
-the simulated tools use.
+the simulated tools use. Links belong to the HubSpot account they were declared for:
+connecting a different account discards them, and none can be declared before an
+account is connected.
 
 ## OAuth
 
@@ -55,7 +57,8 @@ the simulated tools use.
 - `state` is 256 random bits, kept server-side, single-use, and expires after ten
   minutes. It is checked before anything else; a callback with a bad state never
   reaches the token endpoint.
-- The grant must include every required scope or nothing is stored.
+- The grant must include every required scope and name its HubSpot account, or nothing
+  is stored and the grant is revoked.
 - Access tokens (30 minutes) are refreshed a minute before expiry. A 401 from the API
   triggers one refresh and one retry.
 - `invalid_grant` on refresh means the grant was revoked: tokens are dropped, the
@@ -108,7 +111,14 @@ absence is not proof. The case then ends `needs_attention`, an identical write i
 refused while the first is unknown, and an operator can look again later with
 `triagewright recheck <case> <action> --operator <name>` (or
 `POST /api/cases/{id}/actions/{action_id}/recheck`). A recheck is the same lookup; it
-cannot create anything. The agent has no access to it.
+cannot create anything. It is not in the tool catalogue or the MCP server. Over HTTP it
+is an operator route like the approval route, and like the rest of the API it relies on
+the gateway you put in front for authentication.
+
+The "no effect" rows rest on HubSpot refusing a request before acting on it. If HubSpot
+ever created a note and then answered with a 4xx, the action would be recorded as
+failed while the note exists; a later attempt would be a new, separately approved
+write, and the earlier note would show on the ticket.
 
 Simulated tools are unchanged: their upstream keeps an idempotency store, so they
 still reconcile by replaying the same key.
@@ -168,6 +178,12 @@ answer, so that path is covered by the local fake only.
 ## Limits
 
 - One connected HubSpot account per installation; one write tool.
+- The connection store is guarded by an in-process lock only. Do not run `link` or
+  `disconnect` from the CLI at the same moment the server is refreshing a token.
+- HubSpot calls are made while the case service holds its lock, so a slow HubSpot
+  response delays other API calls.
+- A successful recheck settles the action but does not reopen a case that already
+  ended `needs_attention`.
 - A transient HubSpot failure while resolving scope reads as a scope denial.
 - A lookup examines at most 500 notes on a ticket; beyond that it does not conclude.
 - The API has no authentication of its own (see `INTEGRATION.md`): the connect and

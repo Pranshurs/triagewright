@@ -31,6 +31,8 @@ class FakeHubSpot:
         self.access_tokens: dict[str, list[str]] = {}
         self.grant_scopes: list[str] | None = None          # override what a consent grants
         self.deny = False
+        self.hub_id: Any = 4242
+        self.stuck_paging = False                           # never-ending association pages
         self.objects: dict[str, dict[str, dict[str, Any]]] = {
             "tickets": {}, "contacts": {}, "companies": {}, "notes": {}}
         self.assoc: dict[tuple[str, str, str], list[str]] = {}
@@ -159,6 +161,8 @@ class FakeHubSpot:
                 for i in ids[start:start + limit]]}
             if start + limit < len(ids):
                 body["paging"] = {"next": {"after": str(start + limit)}}
+            if self.stuck_paging:
+                body = {"results": [], "paging": {"next": {"after": str(start + 1)}}}
             return 200, body, {}
         return 404, _error("NOT_FOUND"), {}
 
@@ -213,7 +217,7 @@ class FakeHubSpot:
         access = self._mint("hs-access")
         self.access_tokens[access] = scopes
         return 200, {"access_token": access, "refresh_token": refresh, "expires_in": 1800,
-                     "token_type": "bearer", "hub_id": 4242, "scopes": scopes}, {}
+                     "token_type": "bearer", "hub_id": self.hub_id, "scopes": scopes}, {}
 
 
 def _error(category: str, message: str = "error") -> dict[str, Any]:

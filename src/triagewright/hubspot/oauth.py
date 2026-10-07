@@ -137,13 +137,21 @@ class HubSpotAuth:
         granted = [str(x) for x in granted] if isinstance(granted, list) else []
         missing = sorted(set(self.settings.scopes) - set(granted))
         if missing:  # nothing is stored for a grant that cannot do the job
+            self._revoke(body["refresh_token"])
             raise AuthError("MISSING_SCOPES", "grant lacks: " + ", ".join(missing))
+        hub = body.get("hub_id")
+        if not isinstance(hub, int) or isinstance(hub, bool):
+            self._revoke(body["refresh_token"])
+            raise AuthError("MALFORMED_TOKEN_RESPONSE", "the grant names no HubSpot account")
         with self._lock:
             st = self._load()
+            if st.hub_id != hub:
+                # Company ids mean something only inside one HubSpot account. Links
+                # declared for another account must not carry over to this one.
+                st.links = {}
             self._apply(st, body)
             st.scopes, st.needs_reauthorization = sorted(granted), False
-            hub = body.get("hub_id")
-            st.hub_id = hub if isinstance(hub, int) else None
+            st.hub_id = hub
             self._save(st)
         return self.status()
 
@@ -211,24 +219,25 @@ class HubSpotAuth:
 
     def disconnect(self) -> dict[str, Any]:
         """Revoke the grant upstream if possible, then forget the tokens regardless."""
-        s = self.settings
         with self._lock:
             st = self._load()
-            revoked = False
-            if st.refresh_token:
-                try:
-                    r = self._http.post(f"{s.oauth_base}/oauth/{REVOKE_VERSION}/token/revoke",
-                                        data={"token": st.refresh_token,
-                                              "token_type_hint": "refresh_token",
-                                              "client_id": s.client_id,
-                                              "client_secret": s.client_secret})
-                    revoked = r.status_code < 300
-                except httpx.HTTPError:
-                    revoked = False
+            revoked = bool(st.refresh_token) and self._revoke(str(st.refresh_token))
             st.access_token = st.refresh_token = None
             st.expires_at, st.needs_reauthorization = 0.0, False
             self._save(st)
         return {"connected": False, "revoked_upstream": revoked}
+
+    def _revoke(self, refresh_token: str) -> bool:
+        s = self.settings
+        try:
+            r = self._http.post(f"{s.oauth_base}/oauth/{REVOKE_VERSION}/token/revoke",
+                                data={"token": refresh_token,
+                                      "token_type_hint": "refresh_token",
+                                      "client_id": s.client_id,
+                                      "client_secret": s.client_secret})
+        except httpx.HTTPError:
+            return False
+        return r.status_code < 300
 
     # -- connection facts ------------------------------------------------------------
 
@@ -248,6 +257,8 @@ class HubSpotAuth:
             raise ValueError("a HubSpot company id is numeric")
         with self._lock:
             st = self._load()
+            if st.hub_id is None:  # a link is a statement about one HubSpot account
+                raise ValueError("connect a HubSpot account before linking its companies")
             st.links[company_id] = account_id
             self._save(st)
 

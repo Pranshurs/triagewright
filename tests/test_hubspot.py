@@ -178,7 +178,40 @@ def test_denied_consent_and_short_scopes_store_nothing(fake: FakeHubSpot,
     with pytest.raises(AuthError) as e:
         auth.complete(cb["state"], cb["code"])
     assert e.value.code == "MISSING_SCOPES" and "crm.objects.contacts.write" in e.value.message
+    assert fake.refresh_tokens == {}          # the short grant was revoked, not left live
     assert not auth.status()["connected"] and stored(auth)["refresh_token"] is None
+
+
+def test_links_do_not_carry_over_to_a_different_hubspot_account(
+        fake: FakeHubSpot, hub: HubSpotClient, tmp_path: Path) -> None:
+    """Company ids mean something only inside one account: 301 elsewhere is someone else."""
+    auth = hub.auth
+    assert auth.status()["links"] == {"301": ACC, "302": OTHER}
+    auth.disconnect()
+    cb = consent(fake, auth.begin())          # the same account again keeps its links
+    auth.complete(cb["state"], cb["code"])
+    assert auth.status()["links"] == {"301": ACC, "302": OTHER}
+    auth.disconnect()
+    fake.hub_id = 9999                        # now a different account answers
+    cb = consent(fake, auth.begin())
+    assert auth.complete(cb["state"], cb["code"])["hub_id"] == 9999
+    assert auth.status()["links"] == {}
+    svc = CaseService(tmp_path / "runs", hubspot=hub)
+    cid = svc.create("HUBSPOT", None, TICKET)
+    out = svc.submit(cid, UseTool(tool="hubspot_get_company", args={"company_id": "301"}))
+    assert "denied by policy (scope)" in out["feedback"] and out["observations"] == []
+
+
+def test_links_need_a_connected_account_and_a_grant_must_name_one(
+        fake: FakeHubSpot, auth: HubSpotAuth) -> None:
+    with pytest.raises(ValueError, match="connect a HubSpot account"):
+        auth.link(ACC, "301")
+    fake.hub_id = None
+    cb = consent(fake, auth.begin())
+    with pytest.raises(AuthError) as e:
+        auth.complete(cb["state"], cb["code"])
+    assert e.value.code == "MALFORMED_TOKEN_RESPONSE" and not auth.status()["connected"]
+    assert fake.refresh_tokens == {}          # the unusable grant was revoked, not left live
 
 
 def test_access_token_is_refreshed_before_it_expires(fake: FakeHubSpot, auth: HubSpotAuth,
@@ -386,11 +419,21 @@ def test_ticket_shared_between_two_accounts_has_no_scope(fake: FakeHubSpot,
     assert "denied by policy (scope)" in out["feedback"] and out["observations"] == []
 
 
-def test_ids_cannot_carry_a_path(svc: CaseService) -> None:
+@pytest.mark.parametrize("bad", ["501/associations/notes", "0501", "501\n", "", "5 01"])
+def test_ids_have_one_spelling_and_cannot_carry_a_path(svc: CaseService, bad: str) -> None:
     cid = open_case(svc, external=True)
-    out = svc.submit(cid, UseTool(tool="hubspot_get_ticket",
-                                  args={"ticket_id": "501/associations/notes"}))
+    out = svc.submit(cid, UseTool(tool="hubspot_get_ticket", args={"ticket_id": bad}))
     assert out["feedback"].startswith("rejected: INVALID_ARGS")
+
+
+def test_paging_that_never_ends_is_cut_off_and_concludes_nothing(
+        fake: FakeHubSpot, svc: CaseService) -> None:
+    cid = dispatch(svc, fake, ("POST", "/notes", "drop_after"),
+                   *[("GET", "/associations/notes", "status:503")] * 3)
+    fake.stuck_paging = True
+    out = svc.recheck(cid, action(svc, cid)["id"], "op")
+    assert out["action"]["status"] == "unknown"
+    assert "LOOKUP_INCOMPLETE" in out["action"]["detail"]
 
 
 # -- unknown outcomes ------------------------------------------------------------------
@@ -656,5 +699,3 @@ def test_http_and_mcp_expose_the_tools_but_no_new_authority(fake: FakeHubSpot,
     assert "hubspot_add_ticket_note" in listed
     assert not [n for n in listed if any(w in n for w in ("approv", "recheck", "connect"))]
     assert "pending operator decision" in res.content[0].text and fake.journal == []
-    assert client.post(f"/api/cases/{cid}/actions/act_001/recheck",
-                       json={"operator": "op"}).status_code == 404

@@ -220,4 +220,8 @@ MUTANTS = [
            "the upstream marker can be derived without the secret"),
     Mutant("H11", EXTERNAL, HC, "            if write:  # accepted, but we cannot read what was created",
            "            if False:", "unreadable 2xx on a write is reported as a definite failure"),
+    Mutant("H12", EXTERNAL, HO, "            if st.hub_id != hub:", "            if False:",
+           "account links carry over to a different HubSpot account"),
+    Mutant("H13", EXTERNAL, HC, "            if len(ids) >= cap or not results:",
+           "            if len(ids) >= cap:", "an empty page with a cursor is followed"),
 ]

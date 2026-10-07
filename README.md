@@ -132,14 +132,19 @@ arm declares the score card it must produce; see [docs/EVALS.md](docs/EVALS.md).
 
 ## Evidence
 
-- **124 tests:** scenario arms, crash/resume, transport parity, boundary, adapter and
-  review-repair tests.
+- **196 tests:** scenario arms, crash/resume, transport parity, boundary, adapter,
+  review-repair, HubSpot connector (against a local fake) and observability tests.
 - **`triagewright eval`:** 24 arms, 24/24 expected score cards.
 - **Bounded mutation campaign** over approval binding, tenant scope, unknown-outcome
-  reconciliation, the transport boundary and the scorer. An initial mutation pass
-  exposed gaps in the test suite. After targeted regression tests and a cold-review
-  repair round, the final campaign killed all 60 non-equivalent mutants; 2 additional
-  mutants were demonstrated equivalent ([mutation/RESULTS.md](mutation/RESULTS.md)).
+  reconciliation, the transport boundary, the scorer, and the external-write and OAuth
+  boundary. An initial mutation pass exposed gaps in the test suite. After targeted
+  regression tests and two review-repair rounds, the current campaign kills all 73
+  non-equivalent mutants; 2 additional mutants were demonstrated equivalent
+  ([mutation/RESULTS.md](mutation/RESULTS.md)).
+- **Real backends, by hand:** one check of the connector against a HubSpot developer
+  test account ([docs/HUBSPOT.md](docs/HUBSPOT.md)) and one of the telemetry export
+  against a Collector, Jaeger and Prometheus ([docs/INTEGRATION.md](docs/INTEGRATION.md)).
+  These are integration evidence, not production use.
 - **Scorer independence:** tests apply harmful effects *around* the runner and require
   the scorer to catch them.
 

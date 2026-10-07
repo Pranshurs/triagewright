@@ -68,11 +68,14 @@ class HubSpotClient:
                     ids.append(str(r["toObjectId"]))
             nxt = body.get("paging", {}).get("next", {}) if isinstance(
                 body.get("paging"), dict) else {}
-            after = nxt.get("after") if isinstance(nxt, dict) else None
-            if not after:
+            nxt_after = nxt.get("after") if isinstance(nxt, dict) else None
+            if not nxt_after:
                 return ids, True
-            if len(ids) >= cap:
+            # An empty page that still offers a cursor would loop; a full one that
+            # repeats runs into the cap.
+            if len(ids) >= cap or not results:
                 return ids, False
+            after = str(nxt_after)
 
     # -- the one write ---------------------------------------------------------------
 

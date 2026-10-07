@@ -1,9 +1,10 @@
-# Mutation campaign (P5)
+# Mutation campaign
 
 **Summary.** An initial mutation pass exposed gaps in the test suite. After targeted
-regression tests and a cold-review repair round, the final campaign killed all 60
-non-equivalent mutants; 2 additional mutants were demonstrated equivalent. The full
-chronology, including a corrected intermediate result, follows.
+regression tests and a cold-review repair round, the v0.1.0-alpha campaign killed all
+60 non-equivalent mutants; 2 additional mutants were demonstrated equivalent. With the
+HubSpot connector the campaign grew to 75 mutants: 73 killed, the same 2 equivalent.
+The full chronology, including a corrected intermediate result, follows.
 
 Scope: five boundaries where a silent weakening would let bad behaviour through or
 hide it. These are approval binding and operator authority, tenant-scope derivation,
@@ -83,6 +84,29 @@ tests that pin them:
 
 ## Pass 3 (baseline 124 tests): 60 killed, 2 equivalent, 0 survived, 0 invalid of 62
 
-The kill rate over non-equivalent mutants is 60/60. `results.json` holds this run. Two
+The kill rate over non-equivalent mutants is 60/60. `results.json` held this run for
+v0.1.0-alpha (it now holds pass 4). Two
 consecutive full runs gave identical verdicts for every mutant, and the suite passed
 25/25 repeated runs.
+
+## Pass 4 (baseline 196 tests): 73 killed, 2 equivalent, 0 survived, 0 invalid of 75
+
+Run after the HubSpot connector, the observability changes and their review repair.
+`results.json` holds this run.
+
+- **New boundary, external write and OAuth (H01-H13).** Thirteen single mutants, each
+  weakening one rule: reconciliation re-sends an external write; a 5xx, a lost response
+  or an unreadable 2xx on a write is reported as a definite failure; two matching notes
+  settle as one; an incomplete lookup concludes; the callback is accepted without a
+  valid state; a state can be replayed or never expires; a grant missing scopes is
+  stored; the marker can be derived without its secret; account links carry over to a
+  different HubSpot account; an empty page with a cursor is followed. All killed.
+- **Retargeted, same rule:** U03 and U04. Reconciliation moved into its own method, so
+  their target lines changed; both are still killed.
+- **A survivor, closed.** H13 first survived: the paging guard had two conditions and
+  the test could only tell one apart. The redundant condition was removed and the fake
+  made to return an empty page with a moving cursor.
+- **A hanging mutant.** H13 reintroduces an endless loop, so its suite run never
+  returns. The runner now stops a run after 120 seconds and counts that as a kill,
+  saying so in the detail. H13 is the only mutant killed this way.
+- **Equivalent:** A13 and U01, with the same proofs as before.
