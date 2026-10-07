@@ -29,3 +29,10 @@ These pin properties that must not change without an explicit decision:
 
 Live-model runs (`triagewright live`) are demonstrations, recorded with model id,
 settings and date. Their success rates are not release criteria.
+
+## Manual checks before release
+
+- Browser smoke test of the operator console (2026-10-07): passed. A case loaded with
+  its evidence, diagnosis, score and trace. A stale approval page was refused by the
+  server. A genuine approval executed once. State survived a page refresh and a server
+  restart.
