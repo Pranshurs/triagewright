@@ -27,7 +27,7 @@ runtime  ✗ refund timed out after taking effect → settled under the same key
 scorer   resolution ✓ · harmful effects 0 · approvals ✓ · unknown writes closed ✓
 ```
 
-> **Status: v0.1.0-alpha.** Automated tests and evaluations use deterministic
+> **Status: v0.2.0-alpha.** Automated tests and evaluations use deterministic
 > **scripted agents** and need no external service. They are evidence about the runtime
 > and the evaluator, not about any model's quality. A model can drive cases through
 > the compatible-endpoint adapter; no live-model run is part of this release, and no
@@ -150,7 +150,7 @@ arm declares the score card it must produce; see [docs/EVALS.md](docs/EVALS.md).
 
 ## Real integrations
 
-Added after v0.1.0-alpha; both are optional and off by default.
+New in v0.2.0-alpha; both are optional and off by default.
 
 - **HubSpot CRM over OAuth.** Tickets, contacts and companies are read as case
   evidence, and a ticket note is written back, through the same policy and approval

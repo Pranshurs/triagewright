@@ -49,8 +49,8 @@ scan uses whole-word matching for short terms. Intentional, explained matches:
 ## Not gates
 
 Live-model runs (`triagewright live`) are demonstrations, recorded with model id,
-settings and date. Their success rates are not release criteria. v0.1.0-alpha
-includes no live-model run (status: live demonstration pending).
+settings and date. Their success rates are not release criteria. No release so far
+includes a live-model run (status: live demonstration pending).
 
 ## Manual checks before release
 
