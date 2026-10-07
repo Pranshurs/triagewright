@@ -27,10 +27,11 @@ runtime  ✗ refund timed out after taking effect → settled under the same key
 scorer   resolution ✓ · harmful effects 0 · approvals ✓ · unknown writes closed ✓
 ```
 
-> **Status: pre-alpha.** The scenario results below come from **scripted agents**. They
-> are evidence about the runtime and the evaluator, not about any model's quality. A
-> real model can drive cases through the model-endpoint adapter; no live-model
-> results are claimed here.
+> **Status: v0.1.0-alpha.** Automated tests and evaluations use deterministic
+> **scripted agents** and need no external service. They are evidence about the runtime
+> and the evaluator, not about any model's quality. A model can drive cases through
+> the compatible-endpoint adapter; no live-model run is part of this release, and no
+> live-model performance is claimed.
 
 ## Quick start
 
@@ -46,6 +47,30 @@ Or with Docker:
 ```bash
 docker compose up --build
 ```
+
+## Operator walkthrough
+
+This flow was exercised by hand in a browser against `triagewright serve` before the
+release. It is a manual smoke test, not an automated browser test. The same properties
+are pinned by automated HTTP and crash/resume tests in `tests/test_transports.py` and
+`tests/test_crash_resume.py`.
+
+1. **Open S01.** The agent investigates across ticket, account, invoices, payment
+   events, runbook, provisioning and entitlements. It resyncs entitlements and retries
+   provisioning, both safe writes. The case pauses at **awaiting approval** for a
+   EUR 4,800 refund of the duplicate capture, with the cited evidence shown.
+2. **Two operator views.** The same pending approval is open in two browser tabs.
+3. **First operator approves.** The runtime executes the refund. The payment system
+   applies it, but the response is lost (an injected *timeout after effect*). The
+   runtime does not retry blindly: it settles the write under the same idempotency
+   key, learns the refund already happened, and records it once. The agent re-checks
+   billing, replies to the customer and resolves the case.
+4. **Second operator approves from the stale tab.** The server refuses it, with
+   "approval apr_001 is executed, not pending". The page sent only what it was shown,
+   and the decision is the server's.
+5. **Refresh, then restart the server.** The case is still resolved, with one executed
+   approval, one refund, and an independent score of resolution ✓, 0 harmful effects,
+   0 duplicates and unknown writes closed.
 
 ## How it works
 

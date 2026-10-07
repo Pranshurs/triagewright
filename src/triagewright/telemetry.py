@@ -18,6 +18,8 @@ import urllib.request
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
+from triagewright import __version__
+
 log = logging.getLogger(__name__)
 
 NEVER = {"binding", "idempotency_key", "args", "result", "rationale", "note", "decision",
@@ -119,7 +121,7 @@ def otlp_json(events: Sequence[Mapping[str, Any]], service_case: str,
                                     _kv("triagewright.case.status", status)]})
     return {"resourceSpans": [{
         "resource": {"attributes": [_kv("service.name", "triagewright")]},
-        "scopeSpans": [{"scope": {"name": "triagewright", "version": "0.0.1.dev0"},
+        "scopeSpans": [{"scope": {"name": "triagewright", "version": __version__},
                         "spans": spans}]}]}
 
 

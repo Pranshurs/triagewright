@@ -11,6 +11,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict
 
+from triagewright import __version__
 from triagewright.model import Decision
 from triagewright.runner import NotAccepting, StaleApproval
 from triagewright.scenarios import registry
@@ -34,7 +35,7 @@ class OperatorDecision(BaseModel):
 
 def create_app(service: CaseService | None = None) -> FastAPI:
     svc = service or CaseService(os.environ.get("TRIAGEWRIGHT_RUNS", "runs"))
-    app = FastAPI(title="Triagewright", version="0.0.1.dev0")
+    app = FastAPI(title="Triagewright", version=__version__)
 
     def guard(fn: Any, *a: Any, **kw: Any) -> Any:
         try:

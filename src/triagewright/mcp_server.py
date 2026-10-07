@@ -17,6 +17,7 @@ from typing import Any
 import mcp.types as types
 from mcp.server.lowlevel import Server
 
+from triagewright import __version__
 from triagewright.model import Finish, UseTool
 from triagewright.runner import NotAccepting
 from triagewright.service import CaseService
@@ -85,7 +86,7 @@ def build_server(service: CaseService, case_id: str) -> Server[Any]:
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         return handle(service, case_id, params.name, params.arguments)
 
-    return Server("triagewright", version="0.0.1.dev0",
+    return Server("triagewright", version=__version__,
                   instructions=f"Tools act on case {case_id}. Writes may need operator "
                                "approval; the runtime decides.",
                   on_list_tools=list_tools, on_call_tool=call_tool)

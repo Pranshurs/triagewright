@@ -25,10 +25,20 @@ These pin properties that must not change without an explicit decision:
 | HTTP exposes no route that executes a tool directly | `test_transports.py::test_http_has_no_route_that_executes_tools` |
 | The scorer catches harm applied around the runner | `test_scorer_independence.py` |
 
+## Publication scan
+
+Before publication, the current tree and all reachable history are scanned,
+case-insensitively, for references to development tools or process attribution. The
+scan uses whole-word matching for short terms. Intentional, explained matches:
+
+- `LICENSE`: one generic phrase in the standard Apache-2.0 text, kept verbatim.
+- `docs/RELATED_WORK.md`: the third-party project names HolmesGPT and AIOpsLab.
+
 ## Not gates
 
 Live-model runs (`triagewright live`) are demonstrations, recorded with model id,
-settings and date. Their success rates are not release criteria.
+settings and date. Their success rates are not release criteria. v0.1.0-alpha
+includes no live-model run (status: live demonstration pending).
 
 ## Manual checks before release
 
