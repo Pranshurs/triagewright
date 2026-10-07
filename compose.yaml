@@ -1,6 +1,12 @@
 # Local demo stack: the API and operator console on http://localhost:8000.
-# Set TRIAGEWRIGHT_OTLP_ENDPOINT (e.g. http://collector:4318/v1/traces) to export
-# traces to an OpenTelemetry collector; no collector is required.
+#
+# Optional observability profile (Collector -> Jaeger for traces, Prometheus for
+# metrics); nothing else needs it:
+#
+#   TRIAGEWRIGHT_OTLP_ENDPOINT=http://collector:4318/v1/traces \
+#     docker compose --profile observability up --build
+#
+# Jaeger UI: http://localhost:16686   Prometheus: http://localhost:9090
 services:
   triagewright:
     build: .
@@ -11,5 +17,28 @@ services:
       TRIAGEWRIGHT_OTLP_ENDPOINT: ${TRIAGEWRIGHT_OTLP_ENDPOINT:-}
     volumes:
       - triagewright-runs:/data
+
+  collector:
+    profiles: [observability]
+    image: otel/opentelemetry-collector:0.162.0
+    volumes:
+      - ./observability/collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:4318:4318"
+
+  jaeger:
+    profiles: [observability]
+    image: jaegertracing/jaeger:2.22.0
+    ports:
+      - "127.0.0.1:16686:16686"
+
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v3.15.0
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+
 volumes:
   triagewright-runs:

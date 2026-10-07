@@ -143,6 +143,23 @@ arm declares the score card it must produce; see [docs/EVALS.md](docs/EVALS.md).
 - **Scorer independence:** tests apply harmful effects *around* the runner and require
   the scorer to catch them.
 
+## Real integrations
+
+Added after v0.1.0-alpha; both are optional and off by default.
+
+- **HubSpot CRM over OAuth.** Tickets, contacts and companies are read as case
+  evidence, and a ticket note is written back, through the same policy and approval
+  path as every other tool. HubSpot documents no idempotency key for creating records,
+  so a note whose answer is lost is looked up by a keyed marker and never sent twice;
+  if the lookup cannot show exactly one, the outcome stays unknown for an operator.
+  See [docs/HUBSPOT.md](docs/HUBSPOT.md).
+- **OpenTelemetry on real backends.** A compose profile runs an OpenTelemetry
+  Collector, Jaeger and Prometheus. The case trace and five metrics are derived from
+  the canonical trace and exported as OTLP/JSON; a smoke test checks that both arrive.
+  See [docs/INTEGRATION.md](docs/INTEGRATION.md#opentelemetry).
+
+![Scenario S01 in Jaeger: the refund waits for approval, times out after taking effect, and is reconciled](docs/img/jaeger-s01-trace.jpg)
+
 ## Extending
 
 - **A tool:** add a typed input model and a handler in `tools/catalog.py`, give it an
@@ -170,6 +187,7 @@ The API has no authentication; run it behind your own authenticated gateway. See
 ## Documentation
 
 [Spec](docs/SPEC.md) · [Evaluation](docs/EVALS.md) · [Transports](docs/INTEGRATION.md) ·
+[HubSpot connector](docs/HUBSPOT.md) ·
 [Release gates](docs/RELEASE_GATES.md) · [Review](docs/REVIEW.md) · [Limitations](docs/LIMITATIONS.md) ·
 [Related work](docs/RELATED_WORK.md) · [Name](docs/NAMING.md)
 

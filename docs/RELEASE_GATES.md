@@ -10,6 +10,7 @@ Deterministic gates. A release requires all of them.
    kill (see the pass-2 correction in `mutation/RESULTS.md`).
 4. `ruff check .` and `mypy` (strict).
 5. Fresh-venv install from the built wheel, and a Docker compose smoke test.
+6. `python observability/smoke.py` against the `observability` compose profile.
 
 ## Frozen regression tests
 
@@ -24,6 +25,15 @@ These pin properties that must not change without an explicit decision:
 | CLI, service, HTTP and MCP reach identical decisions and effects | `test_transports.py::test_transport_parity` |
 | HTTP exposes no route that executes a tool directly | `test_transports.py::test_http_has_no_route_that_executes_tools` |
 | The scorer catches harm applied around the runner | `test_scorer_independence.py` |
+| A write on an external system is never sent twice; reconciliation is a lookup | `test_hubspot.py::test_lost_response_after_effect_is_found_not_resent`, `::test_lost_request_before_effect_stays_unknown_and_is_not_resent` |
+| OAuth state is required, single-use and short-lived | `test_hubspot.py::test_callback_state_is_required_single_use_and_short_lived` |
+| No token, client secret or marker secret reaches state, trace, record, score, telemetry or logs | `test_hubspot.py::test_no_token_secret_or_key_reaches_any_output` |
+| Metric labels are tool names, outcomes and statuses only | `test_observability.py::test_metrics_carry_only_tool_names_outcomes_and_statuses` |
+| A span is exported once | `test_observability.py::test_each_span_is_pushed_once_and_only_when_final` |
+
+The list of HTTP POST routes pinned by `test_http_has_no_route_that_executes_tools`
+gained two operator routes with the HubSpot connector: `recheck` (a read-only lookup
+of an unknown write) and `hubspot/disconnect`. Neither executes a tool.
 
 ## Publication scan
 

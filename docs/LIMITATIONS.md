@@ -13,8 +13,10 @@
 - **Golds are hand-written.** They are independent of the runtime code but share the
   author's understanding of each scenario.
 - **The operator is simulated** by per-scenario rules.
-- **Unknown outcomes are settled by the operation's idempotency key**, which assumes
-  upstream systems honour keys. For a system without idempotency, a per-tool
-  reconciliation read would be needed.
+- **Unknown outcomes on simulated tools are settled by the operation's idempotency
+  key**, which assumes the upstream honours keys. The HubSpot note, whose upstream does
+  not, is settled by a read-only lookup instead and can stay unknown (`HUBSPOT.md`).
+- **The HubSpot connector is exercised against a local fake** of the endpoints it
+  uses. The fake follows HubSpot's documented shapes; it is not HubSpot.
 - **Single process.** Sessions persist to disk and resume after a crash, but there is no
   concurrent access control between two runners on one case.

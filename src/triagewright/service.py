@@ -22,7 +22,14 @@ from triagewright.model import AskCustomer, CaseView, Finish, UseTool
 from triagewright.record import case_record
 from triagewright.scenarios import Scenario, registry
 from triagewright.state import ApprovalStatus
-from triagewright.telemetry import Exporter, OtlpHttpExporter, otlp_json, safe_export
+from triagewright.telemetry import (
+    Exporter,
+    Metrics,
+    OtlpHttpExporter,
+    metrics_endpoint,
+    otlp_increment,
+    safe_export,
+)
 from triagewright.tools.base import Registry
 from triagewright.tools.catalog import default_registry
 
@@ -42,14 +49,21 @@ class UnknownCase(KeyError):
 
 class CaseService:
     def __init__(self, root: str | Path, exporter: Exporter | None = None,
-                 hubspot: HubSpotClient | None = None) -> None:
+                 hubspot: HubSpotClient | None = None,
+                 metrics_exporter: Exporter | None = None) -> None:
         endpoint = os.environ.get("TRIAGEWRIGHT_OTLP_ENDPOINT")
         self.exporter = exporter or (OtlpHttpExporter(endpoint) if endpoint else None)
+        m_endpoint = metrics_endpoint(endpoint,
+                                      os.environ.get("TRIAGEWRIGHT_OTLP_METRICS_ENDPOINT"))
+        self.metrics = Metrics()
+        self.metrics_exporter = metrics_exporter or (
+            OtlpHttpExporter(m_endpoint) if m_endpoint else None)
         # Optional connector; when absent the catalogue is the simulated one only.
         self.hubspot = hubspot or connector_from_env()
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self._sessions: dict[str, Session] = {}
+        self._sent: dict[str, set[str]] = {}   # case id -> span ids already exported
         self._lock = threading.RLock()
 
     # -- lifecycle -------------------------------------------------------------------
@@ -106,6 +120,8 @@ class CaseService:
             model = ExternalModel() if meta["arm"] is None else None
             s = resume_session(sc, out, model=model, arm=meta["arm"] or next(iter(sc.arms)),
                                registry=self.registry())
+            # Whatever an earlier process finished, it also exported (or lost).
+            self._sent[case_id] = otlp_increment(s.trace.events, case_id, None, set())[1]
             s.runner.start()  # settles anything a dead process left in flight
             self._sessions[case_id] = s
             return s
@@ -171,7 +187,15 @@ class CaseService:
 
     def _export(self, case_id: str) -> None:
         s = self._sessions[case_id]
-        safe_export(self.exporter, lambda: otlp_json(s.trace.events, case_id, s.trace.times))
+        sent = self._sent.setdefault(case_id, set())
+        payload, ids = otlp_increment(s.trace.events, case_id, s.trace.times, sent)
+        if payload is not None and safe_export(self.exporter, lambda: payload):
+            sent |= ids  # a failed push is offered again with the next step
+
+        def metrics() -> dict[str, Any]:
+            self.metrics.update(case_id, s.trace.events, s.trace.times)
+            return self.metrics.otlp_json()
+        safe_export(self.metrics_exporter, metrics)
 
     # -- reading ---------------------------------------------------------------------
 

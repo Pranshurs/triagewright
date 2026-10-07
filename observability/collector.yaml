@@ -1,0 +1,22 @@
+# OpenTelemetry Collector for the optional observability profile:
+# OTLP/HTTP in; traces on to Jaeger, metrics exposed for Prometheus to scrape.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  otlp_http/jaeger:
+    endpoint: http://jaeger:4318
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp_http/jaeger]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]
