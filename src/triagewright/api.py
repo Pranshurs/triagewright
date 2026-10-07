@@ -3,6 +3,7 @@ anything about scope, safety, approval or idempotency."""
 
 from __future__ import annotations
 
+import logging
 import os
 from importlib import resources
 from typing import Annotated, Any
@@ -40,8 +41,24 @@ class OperatorDecision(BaseModel):
     note: str | None = None
 
 
+CALLBACK = "/api/hubspot/callback"
+
+
+class _RedactCallback(logging.Filter):
+    """Keep the one-time authorization code and state out of the access log."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and str(args[2]).startswith(CALLBACK):
+            record.args = (*args[:2], CALLBACK + "?[redacted]", *args[3:])
+        return True
+
+
 def create_app(service: CaseService | None = None) -> FastAPI:
     svc = service or CaseService(os.environ.get("TRIAGEWRIGHT_RUNS", "runs"))
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _RedactCallback) for f in access.filters):
+        access.addFilter(_RedactCallback())
     app = FastAPI(title="Triagewright", version=__version__)
 
     def guard(fn: Any, *a: Any, **kw: Any) -> Any:

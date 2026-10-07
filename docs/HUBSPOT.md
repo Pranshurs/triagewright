@@ -140,6 +140,31 @@ triagewright serve
 5. `triagewright hubspot disconnect`, then delete the note and uninstall the app from
    the test account.
 
+### Result, 2026-10-07
+
+Run once by hand against a HubSpot developer test account, with a privately
+distributed app created from a HubSpot CLI project. Integration evidence only: not
+production use, not part of CI.
+
+| Check | Result |
+|-------|--------|
+| Consent and code exchange | connected; the grant carried exactly the five requested scopes |
+| Read ticket, company, contact | returned through the runner as observations |
+| Contact not yet associated with the linked company | denied, `scope.unresolved`; allowed once associated |
+| Note proposed | policy required approval; nothing sent while pending |
+| Note approved | created once on the ticket; action `succeeded` |
+| Lookup by marker (the reconciliation read) | found exactly that note; HubSpot stored the body and marker unchanged |
+| Forced token refresh | new access token issued; next read succeeded |
+| Secrets in outputs | client secret, access tokens, refresh token and marker secret searched for in case state, trace, record, score, telemetry export, API responses, environment database and server log: none found |
+| Disconnect | HubSpot accepted the revocation at `/oauth/2026-03/token/revoke`; tokens forgotten; the next tool call failed closed with `HUBSPOT_NOT_CONNECTED` |
+
+Two things the run changed. HubSpot's app template carries a base `oauth` scope as
+required, so it is requested with the CRM scopes. The web server's access log showed
+the callback URL with its one-time code and state; that line is now redacted.
+
+Not exercised live: a lost response on the write. HubSpot cannot be told to drop an
+answer, so that path is covered by the local fake only.
+
 ## Limits
 
 - One connected HubSpot account per installation; one write tool.

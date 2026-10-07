@@ -252,6 +252,24 @@ def test_oauth_routes_complete_a_connection_without_showing_tokens(
     assert client.post("/api/hubspot/disconnect").json()["revoked_upstream"] is True
 
 
+def test_access_log_never_shows_the_authorization_code(
+        tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    create_app(CaseService(tmp_path / "runs"))
+    access = logging.getLogger("uvicorn.access")
+    caplog.set_level(logging.INFO, logger="uvicorn.access")
+    line = '%s - "%s %s HTTP/%s" %d'
+    with caplog.at_level(logging.INFO, logger="uvicorn.access"):
+        access.handle(access.makeRecord(
+            access.name, logging.INFO, "x", 0, line,
+            ("127.0.0.1:1", "GET", "/api/hubspot/callback?code=one-time-code&state=st4te",
+             "1.1", 200), None))
+        access.handle(access.makeRecord(
+            access.name, logging.INFO, "x", 0, line,
+            ("127.0.0.1:1", "GET", "/api/cases?x=1", "1.1", 200), None))
+    assert "one-time-code" not in caplog.text and "st4te" not in caplog.text
+    assert "/api/hubspot/callback?[redacted]" in caplog.text and "/api/cases?x=1" in caplog.text
+
+
 def test_without_a_connector_nothing_changes(tmp_path: Path,
                                              monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TRIAGEWRIGHT_HUBSPOT_CLIENT_ID", raising=False)
