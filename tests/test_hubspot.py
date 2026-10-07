@@ -264,6 +264,16 @@ def test_without_a_connector_nothing_changes(tmp_path: Path,
                                            "hubspot_ticket": TICKET}).status_code == 400
 
 
+def test_hubspot_case_without_a_connector_does_not_break_the_case_list(
+        svc: CaseService, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TRIAGEWRIGHT_HUBSPOT_CLIENT_ID", raising=False)
+    cid = open_case(svc)
+    other = svc.create("S03")
+    later = CaseService(svc.root)             # restarted without the connector
+    assert {c["case_id"]: c["status"] for c in later.cases()} == {
+        cid: "unavailable", other: "investigating"}
+
+
 def test_settings_come_from_the_environment_only() -> None:
     assert Settings.from_env({}) is None
     s = Settings.from_env({"TRIAGEWRIGHT_HUBSPOT_CLIENT_ID": "id",

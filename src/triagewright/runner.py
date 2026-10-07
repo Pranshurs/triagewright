@@ -81,6 +81,8 @@ class Runner:
             self._set_status(CaseStatus.INVESTIGATING, "intake")
         self._settle_outstanding()
         self._maybe_resume_after_approvals()
+        # A case that was opened but not yet driven must still survive a restart.
+        self._checkpoint(s)
 
     def run(self) -> CaseStatus:
         """Drive the case with the configured model until it is terminal or waits."""

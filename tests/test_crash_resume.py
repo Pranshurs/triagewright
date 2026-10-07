@@ -52,3 +52,14 @@ def test_restart_does_not_reexecute_or_reapprove(tmp_path: Path) -> None:
     r = resume_session(S01, tmp_path)
     assert r.runner.run() is CaseStatus.RESOLVED
     assert len([e for e in r.env.effects() if e["tool"] == "issue_refund"]) == 1
+
+
+def test_case_opened_but_not_yet_driven_survives_a_restart(tmp_path: Path) -> None:
+    """`open --external` in one process, the agent's transport in another."""
+    from triagewright.service import CaseService
+
+    cid = CaseService(tmp_path).create("S01", arm=None)
+    later = CaseService(tmp_path)
+    assert later.view(cid)["status"] == "investigating"
+    assert [c["case_id"] for c in later.cases()] == [cid]
+    assert [e["type"] for e in later.trace(cid)] == ["case_opened", "case_status"]
