@@ -19,6 +19,7 @@ API_BASE = "https://api.hubapi.com"
 # broad `tickets` scope is legacy). HubSpot has no notes-only scope: creating a note
 # requires the contacts write scope.
 DEFAULT_SCOPES = (
+    "oauth",  # base scope every HubSpot OAuth app requires
     "crm.objects.contacts.read",
     "crm.objects.companies.read",
     "crm.objects.tickets.read",
