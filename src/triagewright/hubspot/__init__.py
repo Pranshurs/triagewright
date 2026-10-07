@@ -15,12 +15,13 @@ AUTHORIZE_URL = "https://app.hubspot.com/oauth/authorize"
 OAUTH_BASE = "https://api.hubspot.com"
 API_BASE = "https://api.hubapi.com"
 
-# Least privilege for the tools in `tools.py`. HubSpot has no notes-only scope:
-# creating a note requires the contacts write scope.
+# Least privilege for the tools in `tools.py`, using HubSpot's granular scopes (the
+# broad `tickets` scope is legacy). HubSpot has no notes-only scope: creating a note
+# requires the contacts write scope.
 DEFAULT_SCOPES = (
     "crm.objects.contacts.read",
     "crm.objects.companies.read",
-    "tickets",
+    "crm.objects.tickets.read",
     "crm.objects.contacts.write",
 )
 

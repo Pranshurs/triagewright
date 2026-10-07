@@ -31,9 +31,11 @@ These pin properties that must not change without an explicit decision:
 | Metric labels are tool names, outcomes and statuses only | `test_observability.py::test_metrics_carry_only_tool_names_outcomes_and_statuses` |
 | A span is exported once | `test_observability.py::test_each_span_is_pushed_once_and_only_when_final` |
 
-The list of HTTP POST routes pinned by `test_http_has_no_route_that_executes_tools`
-gained two operator routes with the HubSpot connector: `recheck` (a read-only lookup
-of an unknown write) and `hubspot/disconnect`. Neither executes a tool.
+Contract change (explicit decision, 2026-10-07): the list of HTTP POST routes pinned
+by `test_http_has_no_route_that_executes_tools` gained two operator routes with the
+HubSpot connector, `recheck` (a read-only lookup of an existing unknown write) and
+`hubspot/disconnect` (manages the connection). Neither executes a tool, and the test
+still pins the full list.
 
 ## Publication scan
 

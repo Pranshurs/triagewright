@@ -26,10 +26,10 @@ HubSpot's date-versioned API, version `2026-09` (one constant in
 Revocation is documented for `2026-03`; a `2026-09` path was not confirmed, so the
 older one is used. Disconnect forgets the local tokens whether or not HubSpot confirms.
 
-Scopes requested: `crm.objects.contacts.read`, `crm.objects.companies.read`, `tickets`,
-`crm.objects.contacts.write`. HubSpot has no notes-only scope; creating a note needs
-the contacts write scope. Override with `TRIAGEWRIGHT_HUBSPOT_SCOPES` if your app's
-scope names differ.
+Scopes requested: `crm.objects.contacts.read`, `crm.objects.companies.read`,
+`crm.objects.tickets.read`, `crm.objects.contacts.write`. HubSpot has no notes-only
+scope; creating a note needs the contacts write scope. An app that still uses the
+legacy `tickets` scope can set `TRIAGEWRIGHT_HUBSPOT_SCOPES`.
 
 ## Tools
 
