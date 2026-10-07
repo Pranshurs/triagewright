@@ -8,10 +8,11 @@ from importlib import resources
 from typing import Annotated, Any
 
 from fastapi import Body, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
 from triagewright import __version__
+from triagewright.hubspot.oauth import AuthError
 from triagewright.model import Decision
 from triagewright.runner import NotAccepting, StaleApproval
 from triagewright.scenarios import registry
@@ -23,6 +24,12 @@ class NewCase(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scenario: str
     arm: str | None = "good"   # null: an external agent drives the case
+    hubspot_ticket: str | None = None  # scenario "HUBSPOT": the ticket's HubSpot id
+
+
+class Recheck(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    operator: str
 
 
 class OperatorDecision(BaseModel):
@@ -69,7 +76,7 @@ def create_app(service: CaseService | None = None) -> FastAPI:
 
     @app.post("/api/cases", status_code=201)
     def create(body: NewCase) -> dict[str, Any]:
-        return {"case_id": guard(svc.create, body.scenario, body.arm)}
+        return {"case_id": guard(svc.create, body.scenario, body.arm, body.hubspot_ticket)}
 
     @app.get("/api/cases/{case_id}")
     def view(case_id: str) -> dict[str, Any]:
@@ -103,5 +110,39 @@ def create_app(service: CaseService | None = None) -> FastAPI:
     @app.get("/api/cases/{case_id}/otel")
     def otel(case_id: str) -> dict[str, Any]:
         return otlp_json(guard(svc.trace, case_id), service_case=case_id)
+
+    @app.post("/api/cases/{case_id}/actions/{action_id}/recheck")
+    def recheck(case_id: str, action_id: str, body: Recheck) -> dict[str, Any]:
+        return guard(svc.recheck, case_id, action_id, body.operator)  # type: ignore[no-any-return]
+
+    # -- HubSpot connection (operator-facing; the agent has no route here) -----------
+
+    def hubspot() -> Any:
+        if svc.hubspot is None:
+            raise HTTPException(404, "no HubSpot connector is configured")
+        return svc.hubspot.auth
+
+    def auth_guard(fn: Any, *a: Any, **kw: Any) -> Any:
+        try:
+            return fn(*a, **kw)
+        except AuthError as e:
+            raise HTTPException(502 if e.transient else 400, f"{e.code}: {e.message}") from e
+
+    @app.get("/api/hubspot/status")
+    def hubspot_status() -> dict[str, Any]:
+        return auth_guard(hubspot().status)  # type: ignore[no-any-return]
+
+    @app.get("/api/hubspot/connect")
+    def hubspot_connect() -> RedirectResponse:
+        return RedirectResponse(auth_guard(hubspot().begin), status_code=302)
+
+    @app.get("/api/hubspot/callback")
+    def hubspot_callback(state: str | None = None, code: str | None = None,
+                         error: str | None = None) -> dict[str, Any]:
+        return auth_guard(hubspot().complete, state, code, error)  # type: ignore[no-any-return]
+
+    @app.post("/api/hubspot/disconnect")
+    def hubspot_disconnect() -> dict[str, Any]:
+        return auth_guard(hubspot().disconnect)  # type: ignore[no-any-return]
 
     return app

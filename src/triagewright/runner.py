@@ -348,17 +348,39 @@ class Runner:
 
         The upstream idempotency store either replays the stored result (the effect
         had happened) or applies it now for the first time; it cannot apply it twice.
+        An upstream without such a store is only searched for the effect (see
+        `Gateway.reconcile`); if that does not settle it, the action stays unknown.
         """
         while rec.status is ActionStatus.UNKNOWN and rec.reconcile_attempts < RECONCILE_ATTEMPTS:
-            rec.reconcile_attempts += 1
-            self.state.tool_calls += 1
-            r = self.gw.invoke(rec.tool, rec.args, rec.idempotency_key)
-            self.trace.emit("reconcile", action_id=rec.id, attempt=rec.reconcile_attempts,
-                            idempotency_key=rec.idempotency_key, outcome=r.outcome.value,
-                            replayed=r.replayed, error_code=r.error_code)
-            if r.outcome is Outcome.ERROR and r.retryable:
-                continue  # transient; still unknown
-            self._settle(rec, r)
+            self._reconcile_once(rec)
+
+    def _reconcile_once(self, rec: ActionRecord) -> None:
+        rec.reconcile_attempts += 1
+        self.state.tool_calls += 1
+        r = self.gw.reconcile(rec.tool, rec.args, rec.idempotency_key)
+        self.trace.emit("reconcile", action_id=rec.id, attempt=rec.reconcile_attempts,
+                        idempotency_key=rec.idempotency_key, outcome=r.outcome.value,
+                        replayed=r.replayed, error_code=r.error_code)
+        if r.outcome is Outcome.ERROR and r.retryable:
+            return  # transient; still unknown
+        self._settle(rec, r)
+
+    def recheck(self, action_id: str, operator: str) -> ActionRecord:
+        """Operator asks upstream again about a write left unknown.
+
+        Only for writes on a real upstream, where asking is a lookup: it can settle
+        the original effect and can never start a new one.
+        """
+        rec = next((a for a in self.state.actions if a.id == action_id), None)
+        if rec is None:
+            raise KeyError(action_id)
+        tool = self.gw.registry.get(rec.tool)
+        if rec.status is not ActionStatus.UNKNOWN or tool is None or tool.external is None:
+            raise ValueError(f"{action_id} is not an unknown write on an external system")
+        self.trace.emit("operator_recheck", action_id=rec.id, operator=operator)
+        self._reconcile_once(rec)
+        self._checkpoint(self.state)
+        return rec
 
     # -- approvals ---------------------------------------------------------------------
 

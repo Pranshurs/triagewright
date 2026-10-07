@@ -36,6 +36,9 @@ SCOPE = "tenant-scope derivation"
 UNKNOWN = "unknown outcome / idempotency"
 TRANSPORT = "transport / service bypass"
 SCORER = "independent scorer"
+EXTERNAL = "external write / OAuth"
+HC = "src/triagewright/hubspot/client.py"
+HO = "src/triagewright/hubspot/oauth.py"
 
 MUTANTS = [
     # -- approval binding / operator authority -------------------------------------
@@ -121,11 +124,11 @@ MUTANTS = [
     Mutant("U02", UNKNOWN, R, 'material = f"{self.state.case.id}\\n{tool}\\n{canonical_args(args)}\\n{settled}"',
            'material = f"{self.state.case.id}\\n{tool}\\n{canonical_args(args)}"',
            "key ignores settled attempts"),
-    Mutant("U03", UNKNOWN, R, "            r = self.gw.invoke(rec.tool, rec.args, rec.idempotency_key)\n            self.trace.emit(\"reconcile\"",
-           "            r = self.gw.invoke(rec.tool, rec.args, rec.idempotency_key + str(rec.reconcile_attempts))\n            self.trace.emit(\"reconcile\"",
+    Mutant("U03", UNKNOWN, R, "        r = self.gw.reconcile(rec.tool, rec.args, rec.idempotency_key)\n        self.trace.emit(\"reconcile\"",
+           "        r = self.gw.reconcile(rec.tool, rec.args, rec.idempotency_key + str(rec.reconcile_attempts))\n        self.trace.emit(\"reconcile\"",
            "reconcile mints a fresh key"),
-    Mutant("U04", UNKNOWN, R, "            if r.outcome is Outcome.ERROR and r.retryable:\n                continue",
-           "            if False:\n                continue", "transient reconcile error settles as failed"),
+    Mutant("U04", UNKNOWN, R, "        if r.outcome is Outcome.ERROR and r.retryable:\n            return",
+           "        if False:\n            return", "transient reconcile error settles as failed"),
     Mutant("U05", UNKNOWN, R, "RECONCILE_ATTEMPTS = 3", "RECONCILE_ATTEMPTS = 0", "no reconciliation"),
     Mutant("U06", UNKNOWN, R, "        if any(a.status is ActionStatus.UNKNOWN for a in same):", "        if False:",
            "repeat a write whose outcome is unknown"),
@@ -193,4 +196,28 @@ MUTANTS = [
     Mutant("C15", SCORER, SC, 'OWNED_ARGS = frozenset({a for _k, a in _OWNED.values()} | set(_OWNED_VIA_PARENT.values()))',
            'OWNED_ARGS = frozenset({a for _k, a in _OWNED.values()})',
            "scorer ignores delivery/job references (review B3, reintroduced)"),
+    Mutant("H01", EXTERNAL, G, "        if tool is None or tool.external is None:\n            return self.invoke(name, args, idempotency_key)",
+           "        if True:\n            return self.invoke(name, args, idempotency_key)",
+           "reconcile re-sends an external write"),
+    Mutant("H02", EXTERNAL, HC, "            if write:  # it may have been applied before the failure",
+           "            if False:", "5xx on a write is reported as a definite failure"),
+    Mutant("H03", EXTERNAL, HC, "                if write:\n                    raise OutcomeUnknown(\"RESPONSE_LOST\"",
+           "                if False:\n                    raise OutcomeUnknown(\"RESPONSE_LOST\"",
+           "a lost response on a write is reported as a definite failure"),
+    Mutant("H04", EXTERNAL, HC, "        if len(matches) > 1:", "        if False:",
+           "two matching notes settle as one success"),
+    Mutant("H05", EXTERNAL, HC, "        if not complete:", "        if False:",
+           "an incomplete lookup concludes"),
+    Mutant("H06", EXTERNAL, HO, "        if not state or not self._take(state):", "        if False:",
+           "callback accepted without a valid state"),
+    Mutant("H07", EXTERNAL, HO, "            return self._pending.pop(match) > self._clock()",
+           "            return self._pending[match] > self._clock()", "state can be replayed"),
+    Mutant("H08", EXTERNAL, HO, "            return self._pending.pop(match) > self._clock()",
+           "            return self._pending.pop(match) > 0", "state never expires"),
+    Mutant("H09", EXTERNAL, HO, "        if missing:  # nothing is stored", "        if False:  # nothing is stored",
+           "a grant missing required scopes is stored"),
+    Mutant("H10", EXTERNAL, HO, "        secret = self._load().marker_secret.encode()", "        secret = b\"\"",
+           "the upstream marker can be derived without the secret"),
+    Mutant("H11", EXTERNAL, HC, "            if write:  # accepted, but we cannot read what was created",
+           "            if False:", "unreadable 2xx on a write is reported as a definite failure"),
 ]

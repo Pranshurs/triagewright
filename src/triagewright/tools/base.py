@@ -40,10 +40,31 @@ class ToolError(Exception):
         self.retryable = retryable
 
 
+class OutcomeUnknown(Exception):
+    """A write was sent, or a lookup was made, and upstream gave no usable answer."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(f"{code}: {message}")
+        self.code = code
+        self.message = message
+
+
 Handler = Callable[[Environment, Any], dict[str, Any]]
 # Returns the account an invocation touches, or None for global resources
 # (plans, runbooks, incidents). Raises ToolError if the referenced object is missing.
 Scope = Callable[[Environment, Any], str | None]
+
+
+@dataclass(frozen=True)
+class External:
+    """A write on a real upstream system that keeps no idempotency store for us.
+
+    `write` performs the effect once, tagged with the runner's key. `lookup` only
+    reads: it returns the one effect carrying that key and raises OutcomeUnknown when
+    upstream cannot show exactly one. Reconciliation calls `lookup`, never `write`.
+    """
+    write: Callable[[Any, str], dict[str, Any]]
+    lookup: Callable[[Any, str], dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -55,6 +76,7 @@ class Tool:
     input_model: type[BaseModel]
     handler: Handler | None
     scope: Scope
+    external: External | None = None
 
     def json_schema(self) -> dict[str, Any]:
         return {
@@ -71,7 +93,9 @@ class Registry:
     def add(self, tool: Tool) -> Tool:
         if tool.name in self._tools:
             raise ValueError(f"duplicate tool {tool.name}")
-        if (tool.effect is Effect.DENIED) != (tool.handler is None):
+        if tool.external is not None and (tool.handler is not None or not tool.effect.writes):
+            raise ValueError(f"{tool.name}: an external adapter replaces a write's handler")
+        if (tool.effect is Effect.DENIED) != (tool.handler is None and tool.external is None):
             raise ValueError(f"{tool.name}: DENIED tools, and only they, have no handler")
         self._tools[tool.name] = tool
         return tool
@@ -147,7 +171,7 @@ class Gateway:
             tool, parsed = self.parse(name, args)
         except ToolError as e:
             return ToolResult(Outcome.ERROR, error_code=e.code, error=e.message)
-        if tool.handler is None:
+        if tool.effect is Effect.DENIED:
             return ToolResult(Outcome.ERROR, error_code="NOT_PERMITTED", error="tool is disabled")
         if tool.effect.writes and not idempotency_key:
             return ToolResult(
@@ -182,6 +206,25 @@ class Gateway:
             raise SimulatedCrash(name)
         return result
 
+    def reconcile(self, name: str, args: dict[str, Any], idempotency_key: str) -> ToolResult:
+        """Ask upstream about a write whose outcome is unknown.
+
+        A simulated upstream keeps an idempotency store, so the same key either replays
+        the stored result or applies the write for the first time. A real upstream gives
+        no such guarantee: there the gateway only looks for the effect, and anything
+        short of exactly one match leaves the outcome unknown.
+        """
+        tool = self.registry.get(name)
+        if tool is None or tool.external is None:
+            return self.invoke(name, args, idempotency_key)
+        try:
+            _, parsed = self.parse(name, args)
+            data = tool.external.lookup(parsed, idempotency_key)
+        except (OutcomeUnknown, ToolError) as e:
+            return ToolResult(Outcome.UNKNOWN, error_code=e.code, error=e.message,
+                              retryable=True)
+        return ToolResult(Outcome.OK, data=data, replayed=True)
+
     def _timeout(self, tool: Tool) -> ToolResult:
         return ToolResult(
             Outcome.UNKNOWN if tool.effect.writes else Outcome.ERROR,
@@ -193,6 +236,13 @@ class Gateway:
     def _execute(
         self, tool: Tool, parsed: BaseModel, raw: dict[str, Any], key: str | None
     ) -> ToolResult:
+        if tool.external is not None:
+            assert key is not None
+            try:
+                return ToolResult(Outcome.OK, data=tool.external.write(parsed, key))
+            except OutcomeUnknown as e:
+                return ToolResult(Outcome.UNKNOWN, error_code=e.code, error=e.message,
+                                  retryable=True)
         assert tool.handler is not None
         if not tool.effect.writes:
             return ToolResult(Outcome.OK, data=tool.handler(self.env, parsed))

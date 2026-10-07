@@ -233,8 +233,11 @@ def test_http_has_no_route_that_executes_tools(http: tuple[TestClient, CaseServi
     client, _svc = http
     posts = sorted(r.path for r in client.app.routes  # type: ignore[attr-defined]
                    if "POST" in getattr(r, "methods", set()))
-    assert posts == ["/api/cases", "/api/cases/{case_id}/approvals/{approval_id}",
-                     "/api/cases/{case_id}/decisions", "/api/cases/{case_id}/run"]
+    # recheck is an operator lookup of an unknown write; disconnect drops a connection.
+    assert posts == ["/api/cases", "/api/cases/{case_id}/actions/{action_id}/recheck",
+                     "/api/cases/{case_id}/approvals/{approval_id}",
+                     "/api/cases/{case_id}/decisions", "/api/cases/{case_id}/run",
+                     "/api/hubspot/disconnect"]
 
 
 def test_http_unknown_case_and_path_tricks(http: tuple[TestClient, CaseService]) -> None:

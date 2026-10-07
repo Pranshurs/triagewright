@@ -53,6 +53,22 @@ def main(argv: list[str] | None = None) -> int:
     lv.add_argument("--temperature", type=float, default=0.0)
     lv.add_argument("--max-tokens", type=int, default=1200)
     lv.add_argument("--out", type=Path, default=Path("runs/live"))
+    hs = sub.add_parser("hubspot", help="HubSpot connection: status, link, open, disconnect")
+    hs_sub = hs.add_subparsers(dest="hs_cmd", required=True)
+    hs_sub.add_parser("status", help="connection state (no secrets)")
+    hs_sub.add_parser("disconnect", help="revoke the grant and forget the tokens")
+    lk = hs_sub.add_parser("link", help="declare which HubSpot company is which account")
+    lk.add_argument("account_id")
+    lk.add_argument("company_id")
+    ho = hs_sub.add_parser("open", help="open a case on a HubSpot ticket; prints its id")
+    ho.add_argument("ticket_id")
+    ho.add_argument("--external", action="store_true")
+    ho.add_argument("--runs", type=Path, default=Path("runs"))
+    rc = sub.add_parser("recheck", help="operator: look upstream again for an unknown write")
+    rc.add_argument("case_id")
+    rc.add_argument("action_id")
+    rc.add_argument("--operator", required=True)
+    rc.add_argument("--runs", type=Path, default=Path("runs"))
     ev = sub.add_parser("eval", help="run and score every scenario arm")
     ev.add_argument("--json", type=Path, help="write the score cards as JSON")
     a = p.parse_args(argv)
@@ -107,6 +123,32 @@ def main(argv: list[str] | None = None) -> int:
 
         svc = CaseService(a.runs)
         print(json.dumps(otlp_json(svc.trace(a.case_id), a.case_id), indent=2))
+        return 0
+    if a.cmd == "hubspot":
+        from triagewright.hubspot.tools import connector_from_env
+        from triagewright.service import CaseService
+
+        hub = connector_from_env()
+        if hub is None:
+            print("set TRIAGEWRIGHT_HUBSPOT_CLIENT_ID and TRIAGEWRIGHT_HUBSPOT_CLIENT_SECRET",
+                  file=sys.stderr)
+            return 2
+        if a.hs_cmd == "status":
+            print(json.dumps(hub.auth.status(), indent=2))
+        elif a.hs_cmd == "disconnect":
+            print(json.dumps(hub.auth.disconnect(), indent=2))
+        elif a.hs_cmd == "link":
+            hub.auth.link(a.account_id, a.company_id)
+            print(f"HubSpot company {a.company_id} is account {a.account_id}")
+        else:
+            print(CaseService(a.runs, hubspot=hub).create(
+                "HUBSPOT", None if a.external else "walkthrough", a.ticket_id))
+        return 0
+    if a.cmd == "recheck":
+        from triagewright.service import CaseService
+
+        print(json.dumps(CaseService(a.runs).recheck(a.case_id, a.action_id, a.operator),
+                         indent=2))
         return 0
     if a.cmd == "live":
         from triagewright.live import markdown, run_live

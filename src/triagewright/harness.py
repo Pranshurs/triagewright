@@ -11,7 +11,7 @@ from triagewright.model import Model, ScriptedModel
 from triagewright.runner import Budget, Runner
 from triagewright.scenarios import Scenario
 from triagewright.state import Case, CaseState, CaseStatus
-from triagewright.tools.base import Gateway
+from triagewright.tools.base import Gateway, Registry
 from triagewright.tools.catalog import default_registry
 from triagewright.trace import Trace
 
@@ -35,7 +35,7 @@ def save_state(state: CaseState, path: Path) -> None:
 
 def open_session(scenario: Scenario, model: Model | None = None, arm: str = "good",
                  out_dir: str | Path | None = None, budget: Budget | None = None,
-                 case: Case | None = None) -> Session:
+                 case: Case | None = None, registry: Registry | None = None) -> Session:
     """Fresh session. With `out_dir`, environment, state and trace live on disk."""
     out = Path(out_dir) if out_dir else None
     if out:
@@ -46,23 +46,25 @@ def open_session(scenario: Scenario, model: Model | None = None, arm: str = "goo
                       path=out / "env.sqlite3" if out else ":memory:")
     state = CaseState(case=case or scenario.case)
     return _assemble(scenario, env, state, out, model, arm, budget,
-                     FaultPlan(list(scenario.faults)))
+                     FaultPlan(list(scenario.faults)), registry)
 
 
 def resume_session(scenario: Scenario, out_dir: str | Path, model: Model | None = None,
                    arm: str = "good", budget: Budget | None = None,
-                   faults: FaultPlan | None = None) -> Session:
+                   faults: FaultPlan | None = None,
+                   registry: Registry | None = None) -> Session:
     """Rebuild a session from disk, as a new process would after a crash."""
     out = Path(out_dir)
     env = Environment.open(out / "env.sqlite3")
     state = CaseState.model_validate_json((out / "state.json").read_text(encoding="utf-8"))
-    return _assemble(scenario, env, state, out, model, arm, budget, faults or FaultPlan())
+    return _assemble(scenario, env, state, out, model, arm, budget, faults or FaultPlan(),
+                     registry)
 
 
 def _assemble(scenario: Scenario, env: Environment, state: CaseState, out: Path | None,
               model: Model | None, arm: str, budget: Budget | None,
-              faults: FaultPlan) -> Session:
-    gw = Gateway(env, default_registry(), faults)
+              faults: FaultPlan, registry: Registry | None = None) -> Session:
+    gw = Gateway(env, registry or default_registry(), faults)
     trace = Trace(out / "trace.jsonl" if out else None)
     if model is None:
         model = ScriptedModel(scenario.arms[arm].steps())

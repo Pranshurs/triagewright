@@ -22,17 +22,16 @@ from triagewright.model import Finish, UseTool
 from triagewright.runner import NotAccepting
 from triagewright.service import CaseService
 from triagewright.state import Resolution
-from triagewright.tools.base import Effect
-from triagewright.tools.catalog import default_registry
+from triagewright.tools.base import Effect, Registry
 
 FINISH = "triagewright_finish"
 CASE = "triagewright_case"
 RESERVED = ("_rationale", "_evidence")
 
 
-def _tool_list() -> list[types.Tool]:
+def _tool_list(registry: Registry) -> list[types.Tool]:
     tools = []
-    for t in default_registry():
+    for t in registry:
         schema = t.input_model.model_json_schema()
         props = dict(schema.get("properties", {}))
         props["_rationale"] = {"type": "string", "description": "why this call"}
@@ -81,7 +80,7 @@ def handle(service: CaseService, case_id: str, name: str,
 
 def build_server(service: CaseService, case_id: str) -> Server[Any]:
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
-        return types.ListToolsResult(tools=_tool_list())
+        return types.ListToolsResult(tools=_tool_list(service.registry()))
 
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         return handle(service, case_id, params.name, params.arguments)
