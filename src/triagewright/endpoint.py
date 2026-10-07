@@ -1,5 +1,9 @@
 """Model-endpoint adapter (optional; demonstration and live use only).
 
+Talks to any inference server that implements the common chat-completions HTTP
+protocol with tool calls (`POST {base_url}/chat/completions`), which most hosted and
+self-hosted inference servers provide.
+
 It implements the same `Model` protocol as the scripted agents and emits only the
 same proposal structures: `UseTool`, `AskCustomer`, `Finish`. It never touches the
 gateway, never sees approval bindings or idempotency keys (the case rendering omits

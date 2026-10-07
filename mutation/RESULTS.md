@@ -1,5 +1,10 @@
 # Mutation campaign (P5)
 
+**Summary.** An initial mutation pass exposed gaps in the test suite. After targeted
+regression tests and a cold-review repair round, the final campaign killed all 60
+non-equivalent mutants; 2 additional mutants were demonstrated equivalent. The full
+chronology, including a corrected intermediate result, follows.
+
 Scope: five boundaries where a silent weakening would let bad behaviour through or
 hide it. These are approval binding and operator authority, tenant-scope derivation,
 unknown-outcome reconciliation and idempotency, the transport/service boundary, and

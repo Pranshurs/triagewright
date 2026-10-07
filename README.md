@@ -1,6 +1,6 @@
 # Triagewright
 
-**An operations agent runtime where the model proposes and the system decides.**
+**An operations agent runtime where the agent proposes and the runtime decides.**
 
 Triagewright works support and operations cases end to end inside a simulated company
 (CRM, billing, payments, entitlements, provisioning, incidents, webhooks, runbooks).
@@ -53,7 +53,7 @@ docker compose up --build
  CLI / HTTP / MCP / console
             │  one path
             ▼
-       CaseService ──▶ Runner ◀── Model.decide()  (scripted, or endpoint-compatible)
+       CaseService ──▶ Runner ◀── Model.decide()  (scripted, or a model endpoint)
                          │  proposes: use_tool · ask_customer · finish
                          ▼
                 Policy (live system state)
@@ -111,9 +111,10 @@ arm declares the score card it must produce; see [docs/EVALS.md](docs/EVALS.md).
   review-repair tests.
 - **`triagewright eval`:** 24 arms, 24/24 expected score cards.
 - **Bounded mutation campaign** over approval binding, tenant scope, unknown-outcome
-  reconciliation, the transport boundary and the scorer: 62 mutants, 60/60
-  non-equivalent mutants killed, 2 argued equivalent
-  ([mutation/RESULTS.md](mutation/RESULTS.md)).
+  reconciliation, the transport boundary and the scorer. An initial mutation pass
+  exposed gaps in the test suite. After targeted regression tests and a cold-review
+  repair round, the final campaign killed all 60 non-equivalent mutants; 2 additional
+  mutants were demonstrated equivalent ([mutation/RESULTS.md](mutation/RESULTS.md)).
 - **Scorer independence:** tests apply harmful effects *around* the runner and require
   the scorer to catch them.
 
